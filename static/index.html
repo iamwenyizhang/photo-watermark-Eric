@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>照片 EXIF 水印工具</title>
+<style>
+:root{
+  --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3;
+  --muted:#8b949e; --accent:#f5c518; --green:#3fb950; --danger:#f85149;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);
+  font-family:"Microsoft YaHei UI","Segoe UI",sans-serif;line-height:1.6;padding-bottom:60px}
+header{padding:28px 24px 18px;text-align:center;border-bottom:1px solid var(--border)}
+header h1{font-size:22px;letter-spacing:.5px}
+header p{color:var(--muted);font-size:13px;margin-top:4px}
+main{max-width:960px;margin:0 auto;padding:20px 16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:18px;margin-bottom:18px}
+.card h2{font-size:15px;margin-bottom:12px;color:var(--accent)}
+#dropzone{border:2px dashed var(--border);border-radius:10px;padding:36px 16px;
+  text-align:center;color:var(--muted);cursor:pointer;transition:.15s;font-size:14px}
+#dropzone:hover,#dropzone.dragover{border-color:var(--accent);color:var(--text);
+  background:rgba(245,197,24,.05)}
+#fileList{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{background:#21262d;border:1px solid var(--border);border-radius:8px;
+  padding:6px 10px;cursor:pointer;min-width:180px;max-width:280px;transition:.12s}
+.chip:hover{border-color:var(--muted)}
+.chip.active{border-color:var(--accent);background:rgba(245,197,24,.08)}
+.chip-main{display:flex;justify-content:space-between;gap:8px}
+.chip-name{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip-x{color:var(--muted);cursor:pointer;font-weight:bold}
+.chip-x:hover{color:var(--danger)}
+.chip-sub{font-size:11px;color:var(--muted)}
+#fileCount{margin-left:8px;color:var(--muted);font-size:13px;font-weight:normal}
+.tpl-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:14px}
+.tpl{border:1px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;transition:.12s}
+.tpl:hover{border-color:var(--muted)}
+.tpl.active{border-color:var(--accent);background:rgba(245,197,24,.08)}
+.tpl b{font-size:14px;display:block}
+.tpl span{font-size:12px;color:var(--muted)}
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;font-size:13px}
+.opt-grid label{display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text)}
+input[type=checkbox]{accent-color:var(--accent)}
+.pos-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+.pos-btn,.logo-pos-btn{background:#21262d;border:1px solid var(--border);color:var(--muted);
+  border-radius:6px;padding:5px 0;font-size:12px;cursor:pointer;font-family:inherit}
+.pos-btn.active,.logo-pos-btn.active{border-color:var(--accent);color:var(--accent)}
+.slider-row{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:13px}
+.slider-row span:first-child{width:72px;color:var(--muted)}
+input[type=range]{flex:1;accent-color:var(--accent)}
+.slider-val{width:46px;text-align:right;color:var(--accent)}
+textarea{width:100%;background:#0d1117;color:var(--text);border:1px solid var(--border);
+  border-radius:6px;padding:8px;font-size:13px;font-family:inherit;resize:vertical;min-height:56px}
+#previewWrap{background:#0a0d12;border:1px solid var(--border);border-radius:8px;
+  min-height:200px;display:flex;justify-content:center;align-items:center;overflow:auto}
+#previewImg{max-width:100%;max-height:70vh;display:none}
+.hint{font-size:12px;color:var(--muted);margin-top:8px}
+button{font-family:inherit}
+.btn-primary{background:var(--accent);color:#1b1f24;border:none;border-radius:8px;
+  padding:11px 28px;font-size:15px;font-weight:bold;cursor:pointer}
+.btn-primary:hover:not(:disabled){filter:brightness(1.1)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn{display:inline-block;background:#21262d;color:var(--text);border:1px solid var(--border);
+  border-radius:6px;padding:7px 16px;font-size:13px;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+#result{margin-top:14px;font-size:14px}
+#result .ok{color:var(--green);margin-bottom:6px}
+#result .path{color:var(--muted);font-size:13px;margin-bottom:10px;word-break:break-all}
+#result .btns{display:flex;gap:10px}
+#result .err{color:var(--danger)}
+.group-title{font-size:13px;color:var(--muted);margin:10px 0 2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>📷 照片 EXIF 水印工具</h1>
+  <p>相机 / 无人机照片批量添加拍摄信息水印 · 本地处理，照片不上传云端</p>
+</header>
+<main>
+
+<section class="card">
+  <h2>1. 上传照片<span id="fileCount"></span></h2>
+  <div id="dropzone"><span id="dropText">拖拽照片到此处，或点击选择文件（支持 JPG / PNG / WebP，可多选）</span></div>
+  <input type="file" id="fileInput" multiple accept="image/*" hidden>
+  <div id="fileList"></div>
+</section>
+
+<section class="card">
+  <h2>2. 水印设置</h2>
+  <div class="tpl-row">
+    <div class="tpl active" data-tpl="drone"><b>🎬 相机参数条</b><span>底部信息条：日期 · GPS · 海拔 · 机型 · 拍摄参数</span></div>
+    <div class="tpl" data-tpl="standard1"><b>🃏 白卡片信息条</b><span>照片下方白条：机型/镜头/参数/时间 + 品牌 Logo</span></div>
+    <div class="tpl" data-tpl="standard2"><b>🖼 社交卡片</b><span>白色留白 + 圆角阴影照片 + 信息条，适合分享</span></div>
+    <div class="tpl" data-tpl="blur"><b>🌫 模糊背景</b><span>照片模糊放大做背景，居中圆角照片 + 白色信息</span></div>
+    <div class="tpl" data-tpl="center_logo"><b>⬜ 品牌留白</b><span>白边相框 + 底部居中品牌 Logo</span></div>
+    <div class="tpl" data-tpl="corner"><b>📌 简约角标</b><span>圆角半透明块，日期 + 坐标 + 海拔</span></div>
+    <div class="tpl" data-tpl="custom"><b>✏️ 自定义文字</b><span>自定义内容 + 可选附加拍摄日期</span></div>
+  </div>
+
+  <div class="opt-grid" id="toggleGroup">
+    <label id="tg_date"><input type="checkbox" id="show_date" checked> 拍摄日期 / 时间</label>
+    <label id="tg_gps"><input type="checkbox" id="show_gps" checked> GPS 坐标</label>
+    <label id="tg_altitude"><input type="checkbox" id="show_altitude" checked> 海拔高度</label>
+    <label id="tg_model"><input type="checkbox" id="show_model" checked> 相机 / 机型</label>
+    <label id="tg_lens"><input type="checkbox" id="show_lens" checked> 镜头型号</label>
+    <label id="tg_params"><input type="checkbox" id="show_params" checked> 拍摄参数（焦距/光圈/快门/ISO）</label>
+  </div>
+
+  <div id="logoGroup" style="display:none">
+    <div class="group-title">品牌 Logo（可选：不上传时按照片 EXIF 品牌自动匹配，支持 DJI / Canon / Nikon / Sony / 富士 / 华为等）</div>
+    <div style="display:flex;gap:10px;align-items:center;font-size:13px">
+      <button class="btn" id="logoBtn" type="button">上传 Logo 图片</button>
+      <span id="logoName" style="color:var(--muted)">未上传（使用自动匹配）</span>
+      <button class="btn" id="logoClear" type="button" style="display:none">清除</button>
+    </div>
+    <input type="file" id="logoInput" accept="image/*" hidden>
+    <div class="group-title">Logo 位置</div>
+    <div class="pos-grid" style="grid-template-columns:repeat(3,1fr)">
+      <button class="logo-pos-btn" data-pos="left" type="button">左侧</button>
+      <button class="logo-pos-btn" data-pos="center" type="button">居中</button>
+      <button class="logo-pos-btn active" data-pos="right" type="button">右侧</button>
+    </div>
+  </div>
+
+  <div id="posGroup" style="display:none">
+    <div class="group-title">水印位置</div>
+    <div class="pos-grid">
+      <button class="pos-btn" data-pos="top-left">左上</button>
+      <button class="pos-btn" data-pos="top-right">右上</button>
+      <button class="pos-btn active" data-pos="bottom-left">左下</button>
+      <button class="pos-btn" data-pos="bottom-right">右下</button>
+    </div>
+  </div>
+
+  <div id="customGroup" style="display:none">
+    <div class="group-title">自定义文字（每行一条，支持姓名 / 电话 / 品牌）</div>
+    <textarea id="custom_text" placeholder="例如：&#10;张文一&#10;Tel 138-0000-0000"></textarea>
+    <label style="font-size:13px;margin-top:6px;display:flex;gap:6px;align-items:center">
+      <input type="checkbox" id="custom_date"> 末尾附加拍摄日期
+    </label>
+  </div>
+
+  <div id="marginGroup" style="display:none">
+    <div class="group-title">留白宽度（品牌留白 / 社交卡片模板）</div>
+    <div class="slider-row"><span>留白宽度</span>
+      <input type="range" id="margin_scale" min="0" max="300" value="100">
+      <span class="slider-val" id="marginVal">100%</span></div>
+  </div>
+
+  <div id="barGroup" style="display:none">
+    <div class="group-title">信息条高度（白卡片 / 社交卡片模板）</div>
+    <div class="slider-row"><span>信息条高度</span>
+      <input type="range" id="bar_scale" min="30" max="300" value="100">
+      <span class="slider-val" id="barVal">100%</span></div>
+  </div>
+
+  <div class="slider-row" id="opacityGroup"><span>背景不透明度</span>
+    <input type="range" id="opacity" min="20" max="100" value="55">
+    <span class="slider-val" id="opacityVal">55%</span></div>
+  <div class="slider-row" id="scaleGroup"><span>字号缩放</span>
+    <input type="range" id="font_scale" min="60" max="160" value="100">
+    <span class="slider-val" id="scaleVal">100%</span></div>
+</section>
+
+<section class="card">
+  <h2>3. 预览</h2>
+  <div id="previewWrap"><p id="previewPlaceholder" style="color:var(--muted);font-size:13px;padding:30px">上传照片后此处显示水印预览，点击文件列表可切换预览对象</p><img id="previewImg" alt="预览图"></div>
+  <p class="hint" id="previewHint"></p>
+</section>
+
+<section class="card">
+  <h2>4. 批量处理</h2>
+  <button class="btn-primary" id="processBtn" disabled>开始处理全部照片</button>
+  <p class="hint">输出为「原名_水印.jpg」，保存到工具目录下的 output 文件夹，原图不修改，EXIF 信息完整保留。社交卡片 / 模糊背景 / 品牌留白模板会扩展画布，输出尺寸大于原图。</p>
+  <div id="result"></div>
+</section>
+
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const state = { files: [], selected: null, busy: false };
+const settings = {
+  template: 'drone', position: 'bottom-left', opacity: 0.55, font_scale: 1.0,
+  custom_text: '', logo_id: null, logo_position: 'right', margin_scale: 1.0,
+  bar_scale: 1.0, show_date: true, show_gps: true, show_model: true,
+  show_lens: true, show_params: true, show_altitude: true
+};
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- 上传 ---------- */
+const drop = $('#dropzone'), fileInput = $('#fileInput');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('dragover'); uploadFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => { uploadFiles(fileInput.files); fileInput.value = ''; });
+
+async function uploadFiles(list) {
+  const imgs = [...list].filter(f =>
+    /^image\//.test(f.type) || /\.(jpe?g|png|webp|bmp|tiff?)$/i.test(f.name));
+  if (!imgs.length) return;
+  $('#dropText').textContent = '上传中...';
+  try {
+    const fd = new FormData();
+    imgs.forEach(f => fd.append('files', f));
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    state.files.push(...data);
+    renderFiles();
+    if (!state.selected && data.length) selectFile(data[0].id);
+  } catch (err) {
+    alert('上传失败: ' + err);
+  }
+  $('#dropText').textContent = '拖拽照片到此处，或点击选择文件（支持 JPG / PNG / WebP，可多选）';
+}
+
+function exifSummary(f) {
+  const e = f.exif || {};
+  const bits = [e.date || '无日期', (e.make || e.model || '').trim()].filter(Boolean);
+  return bits.join(' · ') + ` · ${f.width}×${f.height}`;
+}
+
+function renderFiles() {
+  const box = $('#fileList');
+  box.innerHTML = '';
+  state.files.forEach(f => {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (f.id === state.selected ? ' active' : '');
+    chip.innerHTML = `<div class="chip-main"><span class="chip-name">${esc(f.name)}</span>
+      <span class="chip-x" title="移除">×</span></div>
+      <div class="chip-sub">${esc(exifSummary(f))}</div>`;
+    chip.addEventListener('click', () => selectFile(f.id));
+    chip.querySelector('.chip-x').addEventListener('click', ev => {
+      ev.stopPropagation();
+      state.files = state.files.filter(x => x.id !== f.id);
+      if (state.selected === f.id) {
+        state.selected = null;
+        $('#previewImg').style.display = 'none';
+        $('#previewPlaceholder').style.display = '';
+        $('#previewHint').textContent = '';
+        if (state.files.length) selectFile(state.files[0].id);
+      }
+      renderFiles();
+    });
+    box.appendChild(chip);
+  });
+  $('#fileCount').textContent = state.files.length ? `共 ${state.files.length} 张` : '';
+  $('#processBtn').disabled = !state.files.length || state.busy;
+}
+
+function selectFile(id) {
+  state.selected = id;
+  renderFiles();
+  refreshPreview();
+}
+
+/* ---------- 设置 ---------- */
+document.querySelectorAll('.tpl').forEach(el => el.addEventListener('click', () => {
+  settings.template = el.dataset.tpl;
+  document.querySelectorAll('.tpl').forEach(x => x.classList.toggle('active', x === el));
+  // 模板默认 Logo 位置: 信息条类=右侧, 品牌留白=居中
+  settings.logo_position = el.dataset.tpl === 'center_logo' ? 'center' : 'right';
+  document.querySelectorAll('.logo-pos-btn').forEach(x =>
+    x.classList.toggle('active', x.dataset.pos === settings.logo_position));
+  applyTplVisibility();
+  schedulePreview();
+}));
+
+document.querySelectorAll('.logo-pos-btn').forEach(el => el.addEventListener('click', () => {
+  settings.logo_position = el.dataset.pos;
+  document.querySelectorAll('.logo-pos-btn').forEach(x =>
+    x.classList.toggle('active', x === el));
+  schedulePreview();
+}));
+
+document.querySelectorAll('.pos-btn').forEach(el => el.addEventListener('click', () => {
+  settings.position = el.dataset.pos;
+  document.querySelectorAll('.pos-btn').forEach(x => x.classList.toggle('active', x === el));
+  schedulePreview();
+}));
+
+['show_date', 'show_gps', 'show_model', 'show_lens', 'show_params', 'show_altitude'].forEach(k => {
+  $('#' + k).addEventListener('change', e => { settings[k] = e.target.checked; schedulePreview(); });
+});
+$('#custom_date').addEventListener('change', e => { settings.show_date = e.target.checked; schedulePreview(); });
+
+$('#opacity').addEventListener('input', e => {
+  settings.opacity = e.target.value / 100;
+  $('#opacityVal').textContent = e.target.value + '%';
+});
+$('#opacity').addEventListener('change', schedulePreview);
+$('#font_scale').addEventListener('input', e => {
+  settings.font_scale = e.target.value / 100;
+  $('#scaleVal').textContent = e.target.value + '%';
+});
+$('#font_scale').addEventListener('change', schedulePreview);
+$('#custom_text').addEventListener('input', e => { settings.custom_text = e.target.value; schedulePreview(); });
+$('#margin_scale').addEventListener('input', e => {
+  settings.margin_scale = e.target.value / 100;
+  $('#marginVal').textContent = e.target.value + '%';
+});
+$('#margin_scale').addEventListener('change', schedulePreview);
+$('#bar_scale').addEventListener('input', e => {
+  settings.bar_scale = e.target.value / 100;
+  $('#barVal').textContent = e.target.value + '%';
+});
+$('#bar_scale').addEventListener('change', schedulePreview);
+
+/* 各模板实际生效的设置项(引擎已核对), 未列出的控件隐藏 */
+const TPL_CONTROLS = {
+  drone:       ['tg_date', 'tg_gps', 'tg_altitude', 'tg_model', 'tg_params',
+                'opacityGroup', 'scaleGroup'],
+  corner:      ['tg_date', 'tg_gps', 'tg_altitude', 'opacityGroup', 'scaleGroup'],
+  custom:      ['opacityGroup', 'scaleGroup'],
+  standard1:   ['tg_model', 'tg_lens', 'tg_params', 'tg_date'],
+  standard2:   ['tg_model', 'tg_lens', 'tg_params', 'tg_date'],
+  blur:        ['tg_model', 'tg_params'],
+  center_logo: []
+};
+const ALL_CONTROLS = ['tg_date', 'tg_gps', 'tg_altitude', 'tg_model', 'tg_lens',
+                      'tg_params', 'opacityGroup', 'scaleGroup'];
+
+function applyTplVisibility() {
+  const t = settings.template;
+  const on = new Set(TPL_CONTROLS[t] || []);
+  ALL_CONTROLS.forEach(id => { $('#' + id).style.display = on.has(id) ? '' : 'none'; });
+  $('#toggleGroup').style.display =
+    [...on].some(id => id.startsWith('tg_')) ? '' : 'none';
+  $('#posGroup').style.display = (t === 'corner' || t === 'custom') ? '' : 'none';
+  $('#customGroup').style.display = (t === 'custom' || t === 'center_logo') ? '' : 'none';
+  $('#logoGroup').style.display =
+    (t === 'standard1' || t === 'standard2' || t === 'center_logo') ? '' : 'none';
+  $('#marginGroup').style.display =
+    (t === 'center_logo' || t === 'standard2') ? '' : 'none';
+  $('#barGroup').style.display = (t === 'standard1' || t === 'standard2') ? '' : 'none';
+}
+
+/* ---------- Logo 上传 ---------- */
+$('#logoBtn').addEventListener('click', () => $('#logoInput').click());
+$('#logoInput').addEventListener('change', async () => {
+  const f = $('#logoInput').files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('logo', f);
+  try {
+    const res = await fetch('/api/upload-logo', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.logo_id) {
+      settings.logo_id = data.logo_id;
+      $('#logoName').textContent = f.name;
+      $('#logoClear').style.display = '';
+      schedulePreview();
+    }
+  } catch (e) { alert('Logo 上传失败: ' + e); }
+  $('#logoInput').value = '';
+});
+$('#logoClear').addEventListener('click', () => {
+  settings.logo_id = null;
+  $('#logoName').textContent = '未上传（使用自动匹配）';
+  $('#logoClear').style.display = 'none';
+  schedulePreview();
+});
+
+/* ---------- 预览 ---------- */
+let timer = null;
+function schedulePreview() { clearTimeout(timer); timer = setTimeout(refreshPreview, 400); }
+
+async function refreshPreview() {
+  if (!state.selected) return;
+  $('#previewHint').textContent = '生成预览中...';
+  try {
+    const res = await fetch('/api/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: state.selected, settings })
+    });
+    if (!res.ok) throw new Error('服务返回 ' + res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const img = $('#previewImg');
+    if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+    img.src = url;
+    img.style.display = 'block';
+    $('#previewPlaceholder').style.display = 'none';
+    $('#previewHint').textContent = '预览图（实际输出为原图全尺寸）';
+  } catch (e) {
+    $('#previewHint').textContent = '预览失败: ' + e.message;
+  }
+}
+
+/* ---------- 批量处理 ---------- */
+$('#processBtn').addEventListener('click', async () => {
+  if (state.busy || !state.files.length) return;
+  state.busy = true;
+  const btn = $('#processBtn');
+  btn.disabled = true;
+  btn.textContent = '处理中，请稍候...';
+  $('#result').innerHTML = '<p class="hint">正在处理，大图可能需要几秒钟...</p>';
+  try {
+    const res = await fetch('/api/process', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: state.files.map(f => ({ id: f.id, name: f.name })),
+        settings
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.status);
+    const fail = data.failed && data.failed.length
+      ? `<p class="err">失败 ${data.failed.length} 张：${esc(data.failed.join('、'))}</p>` : '';
+    $('#result').innerHTML = `
+      <div class="ok">✅ 已处理 ${data.count} 张照片</div>
+      ${fail}
+      <div class="path">输出目录：${esc(data.output_dir)}</div>
+      <div class="btns">
+        ${data.zip ? `<a class="btn" href="/api/download/${encodeURIComponent(data.zip)}">⬇ 下载 ZIP</a>` : ''}
+        <button class="btn" id="openFolderBtn">📂 打开输出目录</button>
+      </div>`;
+    $('#openFolderBtn').addEventListener('click', () =>
+      fetch('/api/open-folder', { method: 'POST' }));
+  } catch (e) {
+    $('#result').innerHTML = `<div class="err">处理失败: ${esc(e.message)}</div>`;
+  }
+  state.busy = false;
+  btn.disabled = false;
+  btn.textContent = '开始处理全部照片';
+});
+</script>
+</body>
+</html>
