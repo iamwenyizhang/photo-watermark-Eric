@@ -182,7 +182,8 @@ def parse_exif(img):
 # 普通用户看不懂。此表把已知代号换成通俗机型名，且**不含品牌前缀**
 # （品牌由中间 Logo 承担，如 "14" + 小米标）。
 # 按品牌分组匹配，避免不同厂商型号代号撞车（如一加的 P 码体系与 OPPO 重叠）。
-# 数据来源：三星 Knox 官方支持设备库、华为开发者官网支持设备清单、一加型号对照表、小米官方型号。
+# 数据来源：三星 Knox 官方支持设备库、华为开发者官网支持设备清单、一加型号对照表、
+# 小米官方型号、vivo/iQOO 型号库（MobileModels）。
 # 未收录的代号保持原样显示，不做猜测（猜错比不猜更糟）。
 _MODEL_CODE_MAP = {
     "samsung": {
@@ -231,10 +232,56 @@ _MODEL_CODE_MAP = {
         "CPH2447": "11", "CPH2449": "11", "CPH2451": "11",
         "CPH2585": "Ace 3", "CPH2609": "Ace 3", "CPH2611": "Ace 3", "CPH2487": "Ace 2",
     },
+    "vivo": {
+        # X 系列
+        "V2001A": "X50", "V2005A": "X50 Pro", "V2011A": "X50 Pro+",
+        "V2046A": "X60", "V2047A": "X60 Pro", "V2056A": "X60 Pro+",
+        "V2133A": "X70", "V2134A": "X70 Pro", "V2145A": "X70 Pro+",
+        "V2183A": "X80", "V2185A": "X80 Pro",
+        "V2178A": "X Fold", "V2170A": "X Note",
+        "V2241A": "X90", "V2241HA": "X90s", "V2242A": "X90 Pro", "V2227A": "X90 Pro+",
+        "V2266A": "X Fold2", "V2256A": "X Flip",
+        "V2309A": "X100", "V2324A": "X100 Pro", "V2359A": "X100s",
+        "V2324HA": "X100s Pro", "V2366GA": "X100 Ultra",
+        "V2303A": "X Fold3", "V2337A": "X Fold3 Pro",
+        "V2415A": "X200", "V2405A": "X200 Pro", "V2405DA": "X200 Pro 卫星版",
+        "V2419A": "X200 Pro mini", "V2458A": "X200s", "V2454A": "X200 Ultra",
+        "V2509A": "X300", "V2502A": "X300 Pro", "V2548A": "X300s", "V2547A": "X300 Ultra",
+        # S 系列
+        "V2162A": "S12", "V2163A": "S12 Pro", "V2203A": "S15", "V2207A": "S15 Pro",
+        "V2244A": "S16", "V2245A": "S16 Pro", "V2283A": "S17", "V2284A": "S17 Pro",
+        "V2323A": "S18", "V2344A": "S18 Pro", "V2364A": "S19", "V2362A": "S19 Pro",
+        "V2429A": "S20", "V2430A": "S20 Pro",
+        "V2464A": "S30", "V2465A": "S30 Pro mini",
+        # Y 系列（主流）
+        "V2318A": "Y36", "V2357A": "Y37", "V2313A": "Y100", "V2343A": "Y200",
+        "V2410A": "Y300 Pro", "V2435A": "Y300", "V2506A": "Y500",
+        # iQOO 数字系列（Make 常写作 vivo，故归入本组）
+        "V2171A": "iQOO 9", "V2172A": "iQOO 9 Pro",
+        "V2217A": "iQOO 10", "V2218A": "iQOO 10 Pro",
+        "V2243A": "iQOO 11", "V2254A": "iQOO 11 Pro", "V2304A": "iQOO 11S",
+        "V2307A": "iQOO 12", "V2329A": "iQOO 12 Pro",
+        "V2408A": "iQOO 13", "V2505A": "iQOO 15",
+        # iQOO Neo
+        "V2301A": "iQOO Neo8", "V2302A": "iQOO Neo8 Pro",
+        "V2338A": "iQOO Neo9", "V2339A": "iQOO Neo9 Pro", "V2403A": "iQOO Neo9S Pro+",
+        "V2425A": "iQOO Neo10", "V2426A": "iQOO Neo10 Pro", "V2463A": "iQOO Neo10 Pro+",
+        "V2520A": "iQOO Neo11",
+        # iQOO Z
+        "V2312A": "iQOO Z8x", "V2314A": "iQOO Z8",
+        "V2353A": "iQOO Z9x", "V2361A": "iQOO Z9",
+        "V2352A": "iQOO Z9 Turbo", "V2417A": "iQOO Z9 Turbo+",
+        "V2452A": "iQOO Z10 Turbo", "V2453A": "iQOO Z10 Turbo Pro",
+        "V2507A": "iQOO Z10 Turbo+",
+    },
     "xiaomi": {
         "23127PN0CC": "14", "23116PN5BC": "14 Pro", "24030PN60G": "14 Ultra",
     },
 }
+# 品牌别名：Make 字段写子品牌或不同写法时，归一到型号表的品牌键
+# （iQOO 是 vivo 子品牌，部分机型 Make 直接写 iQOO，但型号库仍属 vivo 体系）
+_BRAND_ALIAS = {"iqoo": "vivo", "redmi": "xiaomi", "poco": "xiaomi"}
+
 # 预排序：长码优先，避免短码误匹配长码
 _MODEL_CODES_SORTED = {
     brand: sorted(table.items(), key=lambda kv: -len(kv[0]))
@@ -249,6 +296,10 @@ def resolve_model_code(model, make=""):
         return raw
     up = raw.upper()
     brand = (make or "").strip().lower()
+    for alias, target in _BRAND_ALIAS.items():
+        if alias in brand:
+            brand = target
+            break
     for b, pairs in _MODEL_CODES_SORTED.items():
         if b not in brand:          # 品牌不符不匹配，防止跨品牌型号撞车
             continue
@@ -286,8 +337,9 @@ _LOGO_COEF = {
 }
 
 # 机型名去品牌前缀时使用的关键词（去重后中间的品牌标才不出现重复）
+# 注意：不含 "iqoo" —— iQOO 是 vivo 的产品线名，保留在机型名里（"iQOO 12"）更清晰
 _BRAND_WORDS = [
-    "xiaomi", "redmi", "poco", "oppo", "vivo", "iqoo", "samsung", "oneplus",
+    "xiaomi", "redmi", "poco", "oppo", "vivo", "samsung", "oneplus",
     "google", "pixel", "meizu", "honor", "huawei", "motorola", "moto",
 ]
 
@@ -318,8 +370,8 @@ def load_brand_logo(make):
 def _strip_brand_from_model(model, make):
     """机型名以品牌词开头时去掉该词（品牌已由中间的 Logo 表达，避免重复）。
 
-    仅当去掉后剩余长度 >= 4 才生效 —— 例如 "OnePlus 12" 去前缀只剩 "12"，
-    太单薄反而失去识别度，此时保留原名、隐藏中间 Logo（见 _draw_info_block）。
+    仅当去掉后剩余长度 >= 2 才生效（如 "S19"、"Y36"、"14" 这类短型号名配合 Logo
+    已经足够清晰）；只剩单个字符时保留原名。
     """
     if not model:
         return model
@@ -327,7 +379,7 @@ def _strip_brand_from_model(model, make):
     for w in _BRAND_WORDS:
         if low.startswith(w):
             rest = model[len(w):].lstrip(" -_·")
-            return rest if len(rest) >= 4 else model
+            return rest if len(rest) >= 2 else model
     return model
 
 
