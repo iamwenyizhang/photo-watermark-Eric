@@ -289,6 +289,34 @@ _MODEL_CODES_SORTED = {
 }
 
 
+def guess_brand_from_code(model):
+    """Make 字段缺失时，按型号代号的形态推断品牌。
+
+    手机照片的 Make 可能被系统或修图 App 抹掉，此时仅凭 Model 也能定位品牌：
+      SM-S928B → samsung ; ALN-AL00 → huawei ; V2309A → vivo ;
+      PJD110 → oneplus ; CPH2581 → oneplus ; 23127PN0CC → xiaomi
+    形态无法区分时返回空串（如 P 码同属一加与 OPPO 体系），宁可不猜。
+    """
+    import re as _re
+    up = (model or "").strip().upper()
+    if not up:
+        return ""
+    if up.startswith("SM-"):
+        return "samsung"
+    # 华为型号后缀为 AL/TL（如 BRA-AL00、ALN-AL80）；荣耀用 AN/AB，不能混为一谈
+    if _re.match(r"^[A-Z]{3}-(AL|TL)\d{2}$", up):
+        return "huawei"
+    if _re.match(r"^V\d{4}[A-Z]{1,3}$", up):            # V2309A / V2227A
+        return "vivo"
+    if _re.match(r"^CPH\d{4}$", up):                    # CPH2581
+        return "oneplus"
+    if _re.match(r"^P[A-Z]{2}\d{3}$", up):              # PJD110 / PHK110
+        return "oneplus"
+    if _re.match(r"^\d{4,5}P[A-Z0-9]{4,6}$", up):        # 23127PN0CC
+        return "xiaomi"
+    return ""
+
+
 def resolve_model_code(model, make=""):
     """把厂商内部型号代号换成通俗机型名（受品牌约束）；未收录的保持原样。"""
     raw = (model or "").strip()
@@ -296,6 +324,8 @@ def resolve_model_code(model, make=""):
         return raw
     up = raw.upper()
     brand = (make or "").strip().lower()
+    if not brand:                       # Make 缺失时按代号形态推断
+        brand = guess_brand_from_code(raw)
     for alias, target in _BRAND_ALIAS.items():
         if alias in brand:
             brand = target
@@ -344,9 +374,15 @@ _BRAND_WORDS = [
 ]
 
 
-def load_brand_logo(make):
-    """按品牌名匹配 Logo 图片, 未识别品牌用 default, 无品牌返回 None。"""
+def load_brand_logo(make, model=""):
+    """按品牌名匹配 Logo 图片, 未识别品牌用 default, 无品牌返回 None。
+
+    Make 字段缺失时（部分系统/修图 App 会抹掉），按型号代号形态推断品牌，
+    避免"型号能识别但 Logo 画不出来"。
+    """
     m = (make or "").strip().lower()
+    if not m and model:
+        m = guess_brand_from_code(model)
     if not m:
         return None
     name = "default.png"
@@ -944,7 +980,7 @@ def apply_watermark(img, exif, settings):
 
     logo = settings.get("_logo")
     if logo is None:
-        logo = load_brand_logo(exif.get("make", ""))
+        logo = load_brand_logo(exif.get("make", ""), exif.get("model", ""))
     if tpl == "standard1":
         return _render_standard1(img, exif, settings, logo)
     if tpl == "standard2":
