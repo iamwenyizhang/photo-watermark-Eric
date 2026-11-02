@@ -177,6 +177,87 @@ def parse_exif(img):
     return info
 
 
+# ---------------- 手机型号代号 → 通俗机型名 ----------------
+# 手机照片 EXIF 的 Model 常是厂商内部代号（SM-S928B / ALN-AL00 / 23127PN0CC），
+# 普通用户看不懂。此表把已知代号换成通俗机型名，且**不含品牌前缀**
+# （品牌由中间 Logo 承担，如 "14" + 小米标）。
+# 按品牌分组匹配，避免不同厂商型号代号撞车（如一加的 P 码体系与 OPPO 重叠）。
+# 数据来源：三星 Knox 官方支持设备库、华为开发者官网支持设备清单、一加型号对照表、小米官方型号。
+# 未收录的代号保持原样显示，不做猜测（猜错比不猜更糟）。
+_MODEL_CODE_MAP = {
+    "samsung": {
+        "SM-S938": "Galaxy S25 Ultra", "SM-S936": "Galaxy S25+", "SM-S931": "Galaxy S25",
+        "SM-S937": "Galaxy S25 Edge", "SM-S731": "Galaxy S25 FE",
+        "SM-S928": "Galaxy S24 Ultra", "SM-S926": "Galaxy S24+", "SM-S921": "Galaxy S24",
+        "SM-S721": "Galaxy S24 FE",
+        "SM-S918": "Galaxy S23 Ultra", "SM-S916": "Galaxy S23+", "SM-S911": "Galaxy S23",
+        "SM-S711": "Galaxy S23 FE",
+        "SM-S908": "Galaxy S22 Ultra", "SM-S906": "Galaxy S22+", "SM-S901": "Galaxy S22",
+        "SM-G998": "Galaxy S21 Ultra", "SM-G996": "Galaxy S21+", "SM-G991": "Galaxy S21",
+        "SM-G990": "Galaxy S21 FE", "SM-G781": "Galaxy S20 FE",
+        "SM-F946": "Galaxy Z Fold5", "SM-F936": "Galaxy Z Fold4", "SM-F926": "Galaxy Z Fold3",
+        "SM-F731": "Galaxy Z Flip5", "SM-F721": "Galaxy Z Flip4", "SM-F711": "Galaxy Z Flip3",
+        "SM-A556": "Galaxy A55", "SM-A546": "Galaxy A54", "SM-A356": "Galaxy A35",
+        "SM-A346": "Galaxy A34", "SM-A256": "Galaxy A25", "SM-A245": "Galaxy A24",
+        "SM-A236": "Galaxy A23 5G", "SM-A235": "Galaxy A23", "SM-A155": "Galaxy A15",
+        "SM-A156": "Galaxy A15 5G", "SM-A145": "Galaxy A14", "SM-A135": "Galaxy A13",
+        "SM-M546": "Galaxy M54", "SM-M346": "Galaxy M34", "SM-M156": "Galaxy M15",
+        "SM-M146": "Galaxy M14", "SM-M135": "Galaxy M13",
+        "SM-N986": "Galaxy Note 20 Ultra",
+        "SM-G556": "Galaxy XCover7", "SM-G736": "Galaxy XCover6 Pro",
+    },
+    "huawei": {
+        "HLS-AL00": "Mate 90", "CMS-AL20": "Mate 90 Pro", "CMM-AL00": "Mate 90 Pro Max",
+        "VYG-AL00": "Mate 80", "SGT-AL00": "Mate 80 Pro", "SGT-AL50": "Mate 80 Pro",
+        "SGT-AL10": "Mate 80 Pro Max",
+        "CLS-AL00": "Mate 70", "PLR-AL00": "Mate 70 Pro", "PLA-AL10": "Mate 70 Pro+",
+        "PLU-AL10": "Mate 70 RS", "SUP-AL90": "Mate 70 Air",
+        "BRA-AL00": "Mate 60", "ALN-AL00": "Mate 60 Pro", "ALN-AL80": "Mate 60 Pro",
+        "ALN-AL10": "Mate 60 Pro+",
+        "CET-AL00": "Mate 50", "DCO-AL00": "Mate 50 Pro",
+        "KEE-AL00": "Pura 90", "MLN-AL00": "Pura 90 Pro", "SCA-AL00": "Pura 90 Pro Max",
+        "HED-AL00": "Pura 80", "LMR-AL00": "Pura 80 Pro", "LMR-AL10": "Pura 80 Pro+",
+        "LMU-AL10": "Pura 80 Ultra",
+        "ADY-AL00": "Pura 70", "HBN-AL00": "Pura 70 Pro", "HBN-AL10": "Pura 70 Pro+",
+        "LNA-AL00": "P60", "MNA-AL00": "P60 Pro",
+        "DEL-AL10": "Mate X7", "ICL-AL10": "Mate X6", "ALT-AL10": "Mate X5",
+        "GRL-AL10": "Mate XT", "LAP-AL10": "Mate XT 2",
+    },
+    "oneplus": {
+        "PLK110": "15", "PJZ110": "13", "PKX110": "13T", "PJD110": "12", "PHB110": "11",
+        "PJE110": "Ace 3", "PHK110": "Ace 2", "PKG110": "Ace 5",
+        "CPH2747": "15", "CPH2649": "13", "CPH2653": "13", "CPH2655": "13",
+        "CPH2723": "13T", "CPH2573": "12", "CPH2581": "12", "CPH2583": "12",
+        "CPH2447": "11", "CPH2449": "11", "CPH2451": "11",
+        "CPH2585": "Ace 3", "CPH2609": "Ace 3", "CPH2611": "Ace 3", "CPH2487": "Ace 2",
+    },
+    "xiaomi": {
+        "23127PN0CC": "14", "23116PN5BC": "14 Pro", "24030PN60G": "14 Ultra",
+    },
+}
+# 预排序：长码优先，避免短码误匹配长码
+_MODEL_CODES_SORTED = {
+    brand: sorted(table.items(), key=lambda kv: -len(kv[0]))
+    for brand, table in _MODEL_CODE_MAP.items()
+}
+
+
+def resolve_model_code(model, make=""):
+    """把厂商内部型号代号换成通俗机型名（受品牌约束）；未收录的保持原样。"""
+    raw = (model or "").strip()
+    if not raw:
+        return raw
+    up = raw.upper()
+    brand = (make or "").strip().lower()
+    for b, pairs in _MODEL_CODES_SORTED.items():
+        if b not in brand:          # 品牌不符不匹配，防止跨品牌型号撞车
+            continue
+        for code, name in pairs:
+            if up == code.upper() or up.startswith(code.upper()):
+                return name
+    return raw
+
+
 # ---------------- 品牌 Logo ----------------
 
 _LOGO_MAP = [
@@ -340,7 +421,8 @@ def _accent_color(make):
 
 def _model_text(exif):
     make = _nice_brand(_clean_make(exif.get("make", "")))
-    model = _nice_brand((exif.get("model") or "").strip())
+    model = resolve_model_code(exif.get("model") or "", exif.get("make") or "")
+    model = _nice_brand(model.strip())
     if make and model.upper().startswith(make.upper()):
         model = model[len(make):].strip()
     return " ".join(x for x in (make, model) if x)
