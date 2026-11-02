@@ -508,6 +508,9 @@ def _accent_color(make):
 
 
 def _model_text(exif):
+    _custom = str(exif.get("_custom_model") or "").strip()
+    if _custom:
+        return _custom
     make = _nice_brand(_clean_make(exif.get("make", "")))
     model = resolve_model_code(exif.get("model") or "", exif.get("make") or "")
     model = _nice_brand(model.strip())
@@ -967,6 +970,13 @@ def apply_watermark(img, exif, settings):
     """按 settings 渲染水印, 返回新图(不修改原图)。"""
     tpl = settings.get("template", "drone")
 
+    # 手填机型：EXIF 里没有品牌/型号时（微信转码、修图软件会剥离）由用户补填，
+    # 同时用于 Logo 匹配（如手填 "vivo X100 Pro" 能匹配到 vivo 标）
+    _custom = str(settings.get("custom_model") or "").strip()
+    if _custom:
+        exif = dict(exif)
+        exif["_custom_model"] = _custom
+
     if tpl in _OVERLAY_TPL:
         rgb = img.convert("RGB")
         overlay = Image.new("RGBA", rgb.size, (0, 0, 0, 0))
@@ -980,7 +990,7 @@ def apply_watermark(img, exif, settings):
 
     logo = settings.get("_logo")
     if logo is None:
-        logo = load_brand_logo(exif.get("make", ""), exif.get("model", ""))
+        logo = load_brand_logo(exif.get("_custom_model") or exif.get("make", ""), exif.get("model", ""))
     if tpl == "standard1":
         return _render_standard1(img, exif, settings, logo)
     if tpl == "standard2":

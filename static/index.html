@@ -125,6 +125,12 @@ button{font-family:inherit}
   </div>
 
   <div id="posGroup" style="display:none">
+    <div class="group-title">机型（选填）</div>
+    <input type="text" id="custom_model" placeholder="EXIF 无信息时手填，如 vivo X100 Pro / Nikon Z6" maxlength="40">
+    <div class="hint" style="font-size:12px;color:#8a8f98;margin:4px 0 12px">
+      照片经微信传输或编辑后，厂商型号常被剥离；填写后自动匹配品牌 Logo
+    </div>
+
     <div class="group-title">水印位置</div>
     <div class="pos-grid">
       <button class="pos-btn" data-pos="top-left">左上</button>
@@ -183,7 +189,7 @@ const $ = s => document.querySelector(s);
 const state = { files: [], selected: null, busy: false };
 const settings = {
   template: 'drone', position: 'bottom-left', opacity: 0.55, font_scale: 1.0,
-  custom_text: '', logo_id: null, logo_position: 'right', margin_scale: 1.0,
+  custom_text: '', custom_model: '', logo_id: null, logo_position: 'right', margin_scale: 1.0,
   bar_scale: 1.0, show_date: true, show_gps: true, show_model: true,
   show_lens: true, show_params: true, show_altitude: true
 };
@@ -301,6 +307,7 @@ $('#font_scale').addEventListener('input', e => {
 });
 $('#font_scale').addEventListener('change', schedulePreview);
 $('#custom_text').addEventListener('input', e => { settings.custom_text = e.target.value; schedulePreview(); });
+$('#custom_model').addEventListener('input', e => { settings.custom_model = e.target.value; schedulePreview(); });
 $('#margin_scale').addEventListener('input', e => {
   settings.margin_scale = e.target.value / 100;
   $('#marginVal').textContent = e.target.value + '%';
