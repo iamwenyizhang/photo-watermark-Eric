@@ -415,11 +415,13 @@ def _render_corner(overlay, exif, opt, custom=False):
 # ---------------- 白卡片信息条(standard1 / standard2 共用) ----------------
 
 def _draw_info_block(canvas, area, exif, opt, logo, cfg):
-    """白色区域内绘制信息条, 忠实复刻 semi-utils WatermarkFilter 布局算法。
+    """白色区域内绘制信息条（semi-utils WatermarkFilter 布局 + 宽度自适应）。
 
     cfg: dict(pad_x, pad_r, divider, right_align_left)
     左块: 机型(粗体黑)上 + 镜头(常规)下; 右块: 参数(粗体)上 + 日期(常规)下, 与左块底对齐。
-    分隔线(浅灰) + Logo 紧贴其左侧; 空间不足时 Logo 逐级缩小。
+    分隔线(浅灰) + Logo 紧贴其左侧。
+    宽度自适应: 左右文本 + Logo 放不进画布时, 等比缩小字号(0.4× 下限), 仍不够则省略镜头行,
+    避免窄幅(竖构图)照片出现文字重叠与 Logo 消失。
     """
     d = ImageDraw.Draw(canvas)
     x0, y0, x1, y1 = area
@@ -427,51 +429,87 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
     W = x1 - x0
     common_spacing = int(0.02 * W)
     middle_spacing = int(h * 0.05)
-    # 行盒排版(semi: 每行渲染后缩放到行盒高, 盒内含字体自然行距):
-    # 机型行(multi_rich_text is_bold)盒高*1.13; 参数行为粗体字形但常规盒高(rich_text 无 is_bold)
     _PHT_LINE_RATIO = 1.4023
-    t_norm = int(h * 0.3)
-    t_bold = int(h * 0.3 * 1.13)
-    f_model = _load_font(max(9, round(t_bold / _PHT_LINE_RATIO)), weight="bold")
-    f_param = _load_font(max(9, round(t_norm / _PHT_LINE_RATIO)), weight="bold")
-    f_norm = _load_font(max(9, round(t_norm / _PHT_LINE_RATIO)), weight="light")
+    t_norm_base = int(h * 0.3)
+    t_bold_base = int(h * 0.3 * 1.13)
     pos = str(opt.get("logo_position", "right")).lower()
 
     model = _model_text(exif).replace("_", "") if opt.get("show_model", True) else ""
     lens = exif.get("lens", "") if opt.get("show_lens", True) else ""
     params = exif.get("params", "") if opt.get("show_params", True) else ""
-    date = f"{exif.get('date', '')} {exif.get('time', '')}".strip()         if opt.get("show_date", True) else ""
+    date = f"{exif.get('date', '')} {exif.get('time', '')}".strip() \
+        if opt.get("show_date", True) else ""
 
-    mw, _ = _measure(d, model, f_model) if model else (0, 0)
-    lw, _ = _measure(d, lens, f_norm) if lens else (0, 0)
-    pw, _ = _measure(d, params, f_param) if params else (0, 0)
-    dw, _ = _measure(d, date, f_norm) if date else (0, 0)
-    left_w = max(mw, lw)
-    right_w = max(pw, dw)
+    def build(scale, with_lens=True):
+        """按字号缩放系数构建一次排版度量。"""
+        s = max(0.2, min(1.0, scale))
+        t_n = max(8, int(t_norm_base * s))
+        t_b = max(8, int(t_bold_base * s))
+        m = {
+            "s": s, "t_norm": t_n, "t_bold": t_b,
+            "f_model": _load_font(max(9, round(t_b / _PHT_LINE_RATIO)), weight="bold"),
+            "f_param": _load_font(max(9, round(t_n / _PHT_LINE_RATIO)), weight="bold"),
+            "f_norm": _load_font(max(9, round(t_n / _PHT_LINE_RATIO)), weight="light"),
+            "lens": lens if with_lens else "",
+        }
+        m["mw"] = _measure(d, model, m["f_model"])[0] if model else 0
+        m["lw"] = _measure(d, m["lens"], m["f_norm"])[0] if m["lens"] else 0
+        m["pw"] = _measure(d, params, m["f_param"])[0] if params else 0
+        m["dw"] = _measure(d, date, m["f_norm"])[0] if date else 0
+        m["left_w"] = max(m["mw"], m["lw"])
+        m["right_w"] = max(m["pw"], m["dw"])
+        # 垂直: 行盒堆叠, 列高随字号缩放
+        lt_h = t_b if model else 0
+        lb_h = t_n if m["lens"] else 0
+        rt_h = t_n if params else 0
+        rb_h = t_n if date else 0
+        mid = middle_spacing if (model and m["lens"]) else 0
+        m["elem_h"] = max(lt_h + (mid + lb_h if m["lens"] else 0),
+                          rt_h + (middle_spacing + rb_h if date else 0))
+        m["lt_h"], m["lb_h"], m["rt_h"], m["rb_h"] = lt_h, lb_h, rt_h, rb_h
+        m["lg"] = _fit_height(logo, m["elem_h"]) if logo is not None else None
+        m["lg_w"] = m["lg"].width if m["lg"] is not None else 0
+        return m
 
-    # 垂直布局: 行盒堆叠(semi), elem 垂直居中, 右块与左块底对齐
-    lt_h = t_bold if model else 0    # 机型: 粗体盒*1.13
-    lb_h = t_norm if lens else 0     # 镜头: 常规盒
-    rt_h = t_norm if params else 0   # 参数: 常规盒(粗体字形)
-    rb_h = t_norm if date else 0     # 日期: 常规盒
-    # 列高(行存在才计入间距), 四行齐全时与 semi 公式等价; 行缺失时自适应堆叠避免重叠
-    left_col = lt_h + (middle_spacing + lb_h if lens else 0)
-    right_col = rt_h + (middle_spacing + rb_h if date else 0)
-    elem_h = max(left_col, right_col)
-    elem_margin = (h - elem_h) // 2
+    def need_width(m):
+        return (cfg["pad_x"] + cfg["pad_r"] + m["left_w"] + m["right_w"]
+                + m["lg_w"] + 5 * common_spacing)
+
+    # 选缩放: 逐档尝试, 找第一个放得下的
+    chosen = None
+    for cand in [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5, 0.45, 0.4, 0.35, 0.3]:
+        m = build(cand)
+        if need_width(m) <= W * 0.995:
+            chosen = m
+            break
+    if chosen is None:      # 极小画布: 省略镜头行再试
+        chosen = build(0.3, with_lens=False)
+        for cand in [0.4, 0.35, 0.3, 0.25]:
+            m = build(cand, with_lens=False)
+            if need_width(m) <= W * 0.995:
+                chosen = m
+                break
+        else:
+            chosen = build(0.25, with_lens=False)
+
+    m = chosen
+    f_model, f_param, f_norm = m["f_model"], m["f_param"], m["f_norm"]
+    lens = m["lens"]
+    left_w, right_w = m["left_w"], m["right_w"]
+    elem_h = min(m["elem_h"], h)
+    elem_margin = max(0, (h - elem_h) // 2)
+    lt_h, lb_h, rt_h, rb_h = m["lt_h"], m["lb_h"], m["rt_h"], m["rb_h"]
+    mid_lb = middle_spacing if lens else 0
     lt_y = y0 + elem_margin
-    lb_y = lt_y + lt_h + (middle_spacing if lens else 0)
+    lb_y = lt_y + lt_h + mid_lb
     rt_y = (lt_y + lt_h - rt_h) if model else (y0 + elem_margin)
-    if lens:
-        rb_y = lb_y + lb_h - rb_h          # 与左下行底对齐(semi 规则)
-    else:
-        rb_y = rt_y + rt_h + (middle_spacing if (params and date) else 0)
+    rb_y = (lb_y + lb_h - rb_h) if lens else (rt_y + rt_h + (middle_spacing if (params and date) else 0))
 
-    # 左块 + 左侧 Logo(semi: l_x = left_margin + common_spacing)
-    lg = _fit_height(logo, elem_h) if logo is not None else None
+    # 左块 + 左侧 Logo
+    lg = m["lg"]
     lx = x0 + cfg["pad_x"] + common_spacing
     if lg is not None and pos == "left":
-        canvas.alpha_composite(lg, (lx, y0 + elem_margin))
+        canvas.alpha_composite(lg, (lx, lt_y))
         lx += lg.width + common_spacing
     if model:
         d.text((lx, lt_y), model, font=f_model, fill=(0, 0, 0))
@@ -479,11 +517,10 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
         d.text((lx, lb_y), lens, font=f_norm, fill=(36, 36, 36))
     left_end = lx + left_w
 
-    # 右块(semi): rt_x = canvas_w - right_margin - width - common_spacing;
-    # 白卡片取两行左对齐 min(rt_x, rb_x); 分隔线距文字 1×common_spacing
+    # 右块
     r_base = x1 - cfg["pad_r"]
-    rt_x = r_base - pw - common_spacing
-    rb_x = r_base - dw - common_spacing
+    rt_x = r_base - m["pw"] - common_spacing
+    rb_x = r_base - m["dw"] - common_spacing
     if cfg["right_align_left"]:
         rt_x = rb_x = min(rt_x, rb_x)
     if params:
@@ -491,7 +528,7 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
     if date:
         d.text((rb_x, rb_y), date, font=f_norm, fill=(36, 36, 36))
 
-    # 分隔线 + 右侧/居中 Logo
+    # 分隔线 + 右侧/居中 Logo（放不下时逐级缩小, 下限按画布高度）
     if lg is not None and pos != "left":
         div_w = max(2, int(W * 0.003)) if cfg["divider"] else 0
         div_x = r_base - right_w - 2 * common_spacing - div_w
@@ -499,10 +536,11 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
             d.rectangle([div_x, int(y0 + elem_margin - elem_h * 0.05),
                          div_x + div_w, int(y0 + elem_margin + elem_h * 1.05)],
                         fill=(216, 216, 214))
+        min_h = max(8, int(h * 0.08))
         if pos == "right":
             logo_x = div_x - common_spacing - lg.width
-            while logo_x < left_end + common_spacing and lg.height > h * 0.28:
-                lg = _fit_height(logo, int(lg.height * 0.85))
+            while logo_x < left_end + common_spacing and lg.height > min_h:
+                lg = _fit_height(logo, max(min_h, int(lg.height * 0.85)))
                 logo_x = div_x - common_spacing - lg.width
             if logo_x >= left_end + common_spacing:
                 canvas.alpha_composite(lg, (logo_x, y0 + elem_margin))
@@ -510,13 +548,12 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
             logo_x = (x0 + x1 - lg.width) // 2
             while (not (logo_x > left_end + common_spacing
                         and logo_x + lg.width < div_x - common_spacing)
-                   and lg.height > h * 0.28):
-                lg = _fit_height(logo, int(lg.height * 0.85))
+                   and lg.height > min_h):
+                lg = _fit_height(logo, max(min_h, int(lg.height * 0.85)))
                 logo_x = (x0 + x1 - lg.width) // 2
             if (logo_x > left_end + common_spacing
                     and logo_x + lg.width < div_x - common_spacing):
-                canvas.alpha_composite(
-                    lg, (logo_x, y0 + (h - lg.height) // 2))
+                canvas.alpha_composite(lg, (logo_x, y0 + (elem_h - lg.height) // 2))
 
 
 def _render_standard1(img, exif, opt, logo):
