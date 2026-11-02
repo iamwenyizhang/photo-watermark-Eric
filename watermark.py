@@ -186,7 +186,28 @@ _LOGO_MAP = [
     ("nikon", "nikon.png"), ("olympus", "olympus_blue_gold.png"),
     ("om system", "olympus_blue_gold.png"), ("panasonic", "panasonic.png"),
     ("lumix", "panasonic.png"), ("pentax", "pentax.png"), ("ricoh", "ricoh.png"),
-    ("sony", "sony.png"), ("huawei", "xmage.png"), ("honor", "xmage.png"),
+    ("sony", "sony.png"),
+    # ---- 手机品牌（simple-icons 单色重绘版，视觉重量系数见 _LOGO_COEF）----
+    ("xiaomi", "xiaomi.png"), ("redmi", "xiaomi.png"), ("poco", "xiaomi.png"),
+    ("oppo", "oppo.png"), ("vivo", "vivo.png"), ("iqoo", "vivo.png"),
+    ("samsung", "samsung.png"), ("oneplus", "oneplus.png"),
+    ("google", "google.png"), ("pixel", "google.png"), ("meizu", "meizu.png"),
+    ("honor", "honor.png"), ("huawei", "huawei.png"),
+    ("motorola", "motorola.png"), ("moto", "motorola.png"),
+]
+
+# 各 Logo 的视觉重量系数：宽字标需放大、实心图形需缩小，否则同一行里大小失衡。
+# 参考值来自实测墨迹覆盖率（小米 73.7% / OPPO 8.5% 等）。
+_LOGO_COEF = {
+    "xiaomi.png": 0.78, "motorola.png": 0.80, "google.png": 0.82,
+    "oneplus.png": 0.88, "huawei.png": 0.95, "meizu.png": 1.15,
+    "honor.png": 1.28, "vivo.png": 1.34, "oppo.png": 1.42, "samsung.png": 1.70,
+}
+
+# 机型名去品牌前缀时使用的关键词（去重后中间的品牌标才不出现重复）
+_BRAND_WORDS = [
+    "xiaomi", "redmi", "poco", "oppo", "vivo", "iqoo", "samsung", "oneplus",
+    "google", "pixel", "meizu", "honor", "huawei", "motorola", "moto",
 ]
 
 
@@ -206,9 +227,27 @@ def load_brand_logo(make):
     try:
         logo = Image.open(p)
         logo.load()
-        return logo.convert("RGBA")
+        logo = logo.convert("RGBA")
+        logo.wm_logo_name = name     # 供渲染层查询视觉重量系数
+        return logo
     except Exception:
         return None
+
+
+def _strip_brand_from_model(model, make):
+    """机型名以品牌词开头时去掉该词（品牌已由中间的 Logo 表达，避免重复）。
+
+    仅当去掉后剩余长度 >= 4 才生效 —— 例如 "OnePlus 12" 去前缀只剩 "12"，
+    太单薄反而失去识别度，此时保留原名、隐藏中间 Logo（见 _draw_info_block）。
+    """
+    if not model:
+        return model
+    low = model.lower().strip()
+    for w in _BRAND_WORDS:
+        if low.startswith(w):
+            rest = model[len(w):].lstrip(" -_·")
+            return rest if len(rest) >= 4 else model
+    return model
 
 
 def _fit_height(img, h):
@@ -435,6 +474,15 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
     pos = str(opt.get("logo_position", "right")).lower()
 
     model = _model_text(exif).replace("_", "") if opt.get("show_model", True) else ""
+    # 机型名去品牌前缀（品牌交给中间 Logo 表达）；去不掉时（如 "OnePlus 12" 只剩 "12"）
+    # 说明品牌仍在机型名里，此时隐藏中间 Logo 以免重复
+    _brand_in_model = False
+    if model:
+        _stripped = _strip_brand_from_model(model, exif.get("make", ""))
+        if _stripped == model:
+            _low = model.lower().strip()
+            _brand_in_model = any(_low.startswith(w) for w in _BRAND_WORDS)
+        model = _stripped
     lens = exif.get("lens", "") if opt.get("show_lens", True) else ""
     params = exif.get("params", "") if opt.get("show_params", True) else ""
     date = f"{exif.get('date', '')} {exif.get('time', '')}".strip() \
@@ -467,7 +515,8 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
         m["elem_h"] = max(lt_h + (mid + lb_h if m["lens"] else 0),
                           rt_h + (middle_spacing + rb_h if date else 0))
         m["lt_h"], m["lb_h"], m["rt_h"], m["rb_h"] = lt_h, lb_h, rt_h, rb_h
-        m["lg"] = _fit_height(logo, m["elem_h"]) if logo is not None else None
+        m["lg"] = (_fit_height(logo, m["elem_h"])
+                   if (logo is not None and not _brand_in_model) else None)
         m["lg_w"] = m["lg"].width if m["lg"] is not None else 0
         return m
 
@@ -524,9 +573,11 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
     lg = m["lg"]
     ink_h = ink_bottom - ink_top
     if lg is not None:
-        # 视觉对齐: Logo 高度取文字墨迹高的 1.1 倍, 并与墨迹中心对齐(不按行盒)
-        target_h = min(elem_h, max(8, round(ink_h * 1.1)))
-        if lg.height > target_h:
+        # 视觉对齐: 高度 = 墨迹高 × 1.1 × 品牌系数（抵消各 Logo 墨迹覆盖率差异），
+        # 并与墨迹中心对齐（不按行盒，否则视觉偏上）
+        _coef = _LOGO_COEF.get(getattr(logo, "wm_logo_name", ""), 1.0)
+        target_h = max(8, min(h, round(ink_h * 1.1 * _coef)))
+        if lg.height != target_h:
             lg = _fit_height(logo, target_h)
     def _logo_y(obj):
         yy = round(ink_center - obj.height / 2)
