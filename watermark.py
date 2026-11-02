@@ -505,17 +505,42 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
     rt_y = (lt_y + lt_h - rt_h) if model else (y0 + elem_margin)
     rb_y = (lb_y + lb_h - rb_h) if lens else (rt_y + rt_h + (middle_spacing if (params and date) else 0))
 
+
+    # 文字墨迹盒(实际字形范围): Logo 与分隔线按墨迹居中, 而非按行盒居中,
+    # 否则 Logo 上边缘高于文字、视觉上呈"上对齐"
+    ink_top, ink_bottom = None, None
+    for txt, fnt, yy in ((model, f_model, lt_y), (lens, f_norm, lb_y),
+                         (params, f_param, rt_y), (date, f_norm, rb_y)):
+        if not txt:
+            continue
+        bb = d.textbbox((0, yy), txt, font=fnt)
+        ink_top = bb[1] if ink_top is None else min(ink_top, bb[1])
+        ink_bottom = bb[3] if ink_bottom is None else max(ink_bottom, bb[3])
+    if ink_top is None:
+        ink_top, ink_bottom = lt_y, lt_y + elem_h
+    ink_center = (ink_top + ink_bottom) / 2
+
     # 左块 + 左侧 Logo
     lg = m["lg"]
+    ink_h = ink_bottom - ink_top
+    if lg is not None:
+        # 视觉对齐: Logo 高度取文字墨迹高的 1.1 倍, 并与墨迹中心对齐(不按行盒)
+        target_h = min(elem_h, max(8, round(ink_h * 1.1)))
+        if lg.height > target_h:
+            lg = _fit_height(logo, target_h)
+    def _logo_y(obj):
+        yy = round(ink_center - obj.height / 2)
+        return max(y0, min(yy, y1 - obj.height))
     lx = x0 + cfg["pad_x"] + common_spacing
     if lg is not None and pos == "left":
-        canvas.alpha_composite(lg, (lx, lt_y))
+        canvas.alpha_composite(lg, (lx, _logo_y(lg)))
         lx += lg.width + common_spacing
     if model:
         d.text((lx, lt_y), model, font=f_model, fill=(0, 0, 0))
     if lens:
         d.text((lx, lb_y), lens, font=f_norm, fill=(36, 36, 36))
     left_end = lx + left_w
+
 
     # 右块
     r_base = x1 - cfg["pad_r"]
@@ -533,8 +558,9 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
         div_w = max(2, int(W * 0.003)) if cfg["divider"] else 0
         div_x = r_base - right_w - 2 * common_spacing - div_w
         if cfg["divider"]:
-            d.rectangle([div_x, int(y0 + elem_margin - elem_h * 0.05),
-                         div_x + div_w, int(y0 + elem_margin + elem_h * 1.05)],
+            dh = int(max(lg.height * 1.1, ink_h * 1.05, 8))
+            d.rectangle([div_x, int(ink_center - dh / 2),
+                         div_x + div_w, int(ink_center + dh / 2)],
                         fill=(216, 216, 214))
         min_h = max(8, int(h * 0.08))
         if pos == "right":
@@ -543,7 +569,7 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
                 lg = _fit_height(logo, max(min_h, int(lg.height * 0.85)))
                 logo_x = div_x - common_spacing - lg.width
             if logo_x >= left_end + common_spacing:
-                canvas.alpha_composite(lg, (logo_x, y0 + elem_margin))
+                canvas.alpha_composite(lg, (logo_x, _logo_y(lg)))
         else:  # center
             logo_x = (x0 + x1 - lg.width) // 2
             while (not (logo_x > left_end + common_spacing
@@ -553,7 +579,7 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
                 logo_x = (x0 + x1 - lg.width) // 2
             if (logo_x > left_end + common_spacing
                     and logo_x + lg.width < div_x - common_spacing):
-                canvas.alpha_composite(lg, (logo_x, y0 + (elem_h - lg.height) // 2))
+                canvas.alpha_composite(lg, (logo_x, _logo_y(lg)))
 
 
 def _render_standard1(img, exif, opt, logo):
