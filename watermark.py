@@ -16,6 +16,8 @@ from fractions import Fraction
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
+# 信息条高度倍率上限: 实测 1.9× 起 Logo 开始被压缩, 2.1~2.2× 完全消失, 故锁定 1.8
+BAR_SCALE_MAX = 1.8
 _ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 LOGO_DIR = os.path.join(_ASSETS, "logos")
 
@@ -519,7 +521,7 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
 
 def _render_standard1(img, exif, opt, logo):
     W, H = img.size
-    bs = min(3.0, max(0.3, float(opt.get("bar_scale", 1.0))))
+    bs = min(BAR_SCALE_MAX, max(0.3, float(opt.get("bar_scale", 1.0))))
     bar_h = int(H * 0.12 * bs)   # semi: bottom_margin = 12% 照片高
     canvas = Image.new("RGBA", (W, H + bar_h), (255, 255, 255, 255))
     canvas.paste(img.convert("RGBA"), (0, 0))
@@ -565,7 +567,7 @@ def _render_standard2(img, exif, opt, logo):
     sh_r = max(0, int(57 * ms))          # 阴影半径(随白边缩放, 0=无阴影)
     radius = int(H * 0.01)               # 圆角 1% 照片高
     pad = sh_r * 2                       # 阴影画布扩展
-    bs = min(3.0, max(0.3, float(opt.get("bar_scale", 1.0))))
+    bs = min(BAR_SCALE_MAX, max(0.3, float(opt.get("bar_scale", 1.0))))
     bar_h = int((H + 2 * pad) * 0.12 * bs)
     bottom_extra = int(H * 0.02)
 
