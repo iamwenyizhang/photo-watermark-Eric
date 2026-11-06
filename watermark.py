@@ -276,6 +276,44 @@ _MODEL_CODE_MAP = {
     },
     "xiaomi": {
         "23127PN0CC": "14", "23116PN5BC": "14 Pro", "24030PN60G": "14 Ultra",
+        "15": "15", "15 Pro": "15 Pro", "15 Ultra": "15 Ultra",
+        "Redmi K70": "Redmi K70", "Redmi K70 Pro": "Redmi K70 Pro", "Redmi K70 Ultra": "Redmi K70 Ultra",
+        "Redmi K80": "Redmi K80", "Redmi K80 Pro": "Redmi K80 Pro",
+        "Redmi Note 13": "Redmi Note 13", "Redmi Note 14": "Redmi Note 14",
+    },
+    # OPPO（入网型号码来源：OPPO 开发者平台「机型 ColorOS 版本查询」官方表）
+    "oppo": {
+        "PKB110": "Find X8", "PKC110": "Find X8 Pro", "PKC130": "Find X8 Pro 卫星版",
+        "PKJ110": "Find X8 Ultra", "PKT110": "Find X8s", "PLB110": "Find X8s+",
+        "PHZ110": "Find X7", "PHY110": "Find X7 Ultra", "PHY120": "Find X7 Ultra 卫星版",
+        "PGFM10": "Find X6", "PGEM10": "Find X6 Pro",
+        "PFFM10": "Find X5", "PFEM10": "Find X5 Pro",
+        "PLP110": "Find N6", "PKH110": "Find N5", "PHN110": "Find N3",
+        "PGU110": "Find N2", "PGT110": "Find N2 Flip",
+        "PMM110": "Reno 16", "PMK110": "Reno 16 Pro",
+        "PLW110": "Reno 15", "PLV110": "Reno 15 Pro",
+        "PKM110": "Reno 13", "PKK110": "Reno 13 Pro",
+        "PJV110": "Reno 12", "PJW110": "Reno 12 Pro",
+        "PJH110": "Reno11", "PJJ110": "Reno11 Pro",
+        "PHW110": "Reno10", "PHV110": "Reno10 Pro", "PHU110": "Reno10 Pro+",
+        "PHM110": "Reno9", "PGX110": "Reno9 Pro", "PGW110": "Reno9 Pro+",
+        "PGBM10": "Reno8", "PGAM10": "Reno8 Pro", "PFZM10": "Reno8 Pro+",
+    },
+    # 荣耀（Magic 系列入网型号码来源：荣耀开发者平台/MobileModels；
+    # 数字与 X 系列用机型名做 key，覆盖 EXIF 直写机型名的情形）
+    "honor": {
+        "BKQ-AN00": "Magic8", "BKQ-AN10": "Magic8 Pro", "LDY-AN00": "Magic8 Pro Air",
+        "PTP-AN00": "Magic7", "PTP-AN10": "Magic7 Pro", "PTP-AN20": "Magic7 RSR",
+        "BVL-AN00": "Magic6", "BVL-AN16": "Magic6 Pro", "BVL-AN20": "Magic6 至臻版",
+        "PGT-AN00": "Magic5", "PGT-AN10": "Magic5 Pro", "PGT-AN20": "Magic5 至臻版",
+        "PNM-AN10": "Magic V6", "MBH-AN10": "Magic V5", "FCP-AN10": "Magic V3",
+        "FLC-AN00": "Magic Vs3", "VER-AN10": "Magic V2", "VER-AN00": "Magic Vs2",
+        "LRA-AN00": "Magic V Flip", "CLE-AN00": "Magic V Flip2",
+        "500": "500", "500 Pro": "500 Pro", "400": "400", "400 Pro": "400 Pro",
+        "300": "300", "300 Pro": "300 Pro", "300 Ultra": "300 Ultra",
+        "200": "200", "200 Pro": "200 Pro", "100": "100", "100 Pro": "100 Pro",
+        "X60": "X60", "X60 Pro": "X60 Pro",
+        "X50": "X50", "X50 Pro": "X50 Pro", "X50 GT": "X50 GT",
     },
 }
 # 品牌别名：Make 字段写子品牌或不同写法时，归一到型号表的品牌键
@@ -496,6 +534,7 @@ _BRAND_ACCENT = {
     "fujifilm": (0, 180, 237), "hasselblad": (51, 51, 51), "leica": (226, 6, 18),
     "dji": (43, 43, 43), "panasonic": (15, 91, 181), "pentax": (0, 169, 92),
     "olympus": (43, 111, 179), "huawei": (199, 0, 11), "honor": (0, 179, 227),
+    "oppo": (4, 106, 56), "xiaomi": (255, 105, 0),
 }
 
 
