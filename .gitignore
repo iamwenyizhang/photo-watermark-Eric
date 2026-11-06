@@ -1,0 +1,11 @@
+# 运行产物
+uploads/
+output/
+__pycache__/
+*.pyc
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
