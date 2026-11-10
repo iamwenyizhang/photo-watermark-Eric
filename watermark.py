@@ -688,8 +688,9 @@ def _draw_info_block(canvas, area, exif, opt, logo, cfg):
     common_spacing = int(0.02 * W)
     middle_spacing = int(h * 0.05)
     _PHT_LINE_RATIO = 1.4023
-    t_norm_base = int(h * 0.3)
-    t_bold_base = int(h * 0.3 * 1.13)
+    ts = float(cfg.get("text_scale", 1.0))   # 字号系数: 社交卡片等"海报型"布局可放大
+    t_norm_base = int(h * 0.3 * ts)
+    t_bold_base = int(h * 0.3 * 1.13 * ts)
     pos = str(opt.get("logo_position", "right")).lower()
 
     model = _model_text(exif).replace("_", "") if opt.get("show_model", True) else ""
@@ -902,21 +903,21 @@ def _render_standard2(img, exif, opt, logo):
     pad = sh_r * 2                       # 阴影画布扩展
     bs = min(BAR_SCALE_MAX, max(0.3, float(opt.get("bar_scale", 1.0))))
     bar_h = int((H + 2 * pad) * 0.12 * bs)
-    bottom_extra = int(H * 0.02)
+    gap = sh_r                           # 照片与信息条之间只留阴影衰减所需的空间
 
     cw = W + 2 * pad + 2 * m
-    ch = m + (H + 2 * pad) + bar_h + bottom_extra
+    ch = m + pad + H + gap + bar_h
     canvas = Image.new("RGBA", (cw, ch), (255, 255, 255, 255))
 
     px, py = m + pad, m + pad
     ph = _rounded(img, radius)
     _glow_shadow(canvas, ph, (px, py), radius=sh_r, alpha=180)
 
-    footer_y = m + H + 2 * pad
+    footer_y = py + H + gap
     _draw_info_block(
         canvas, (0, footer_y, cw, footer_y + bar_h), exif, opt, logo,
         {"pad_x": m, "pad_r": m,
-         "divider": False, "right_align_left": False})
+         "divider": False, "right_align_left": False, "text_scale": 1.18})
     return canvas.convert("RGB")
 
 
