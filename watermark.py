@@ -6,6 +6,7 @@
   standard2   — 社交卡片: 白色留白 + 圆角阴影照片 + 信息条
   blur        — 模糊背景: 照片模糊放大做背景, 居中圆角照片 + 白色信息
   film        — 胶片边框: 上下深色片基 + 齿孔, 模拟 35mm 底片一格
+  polaroid    — 拍立得: 照片缩进白色相纸, 底部宽边标注机型与参数
   center_logo — 品牌留白: 白边相框 + 底部居中品牌 Logo
   normal      — 极简右下角: 一行小字, 无底色
   custom      — 自定义文字 + 可选日期
@@ -986,6 +987,64 @@ def _render_film(img, exif, opt):
     return canvas
 
 
+def _render_polaroid(img, exif, opt):
+    """拍立得: 照片缩进白色相纸, 上左右窄边, 底部宽边留作标注。
+
+    比例参照宝丽来相纸(画面 79mm, 左右上 5mm, 底 22mm), 但保留原图比例:
+    左右上 = 照片宽 4.5%, 底部标注区 = 照片宽 13%。不做圆角与阴影——
+    相纸是平贴的, 加阴影反而失真。
+    """
+    W, H = img.size
+    border = max(6, int(W * 0.045))
+    # 标注区高度按短边算: 横幅照片若按宽度算, 底部会空出近 20% 的高
+    note_h = max(26, int(min(W, H) * 0.13))
+    cw, ch = W + border * 2, border + H + note_h
+
+    canvas = Image.new("RGB", (cw, ch), (255, 255, 255))
+    canvas.paste(img.convert("RGB"), (border, border))
+    d = ImageDraw.Draw(canvas)
+
+    # 型号里的下划线与信息条口径一致: "Z5_2" -> "Z52"
+    model = (_model_text(exif) or "").replace("_", "").strip() \
+        if opt.get("show_model", True) else ""
+    params = (exif.get("params") or "") if opt.get("show_params", True) else ""
+    date = (exif.get("date") or "") if opt.get("show_date", True) else ""
+    info = "   ·   ".join(x for x in (params, date) if x)
+    if not model and not info:
+        return canvas
+
+    # 机型粗黑一行, 参数与日期细灰一行, 两行在标注区内垂直居中。
+    # 超过相纸宽 84% 时整组等比缩小, 避免竖幅长机型名溢出。
+    inner = int(cw * 0.84)
+    m_size = max(10, int(note_h * 0.32))
+    i_size = max(9, int(note_h * 0.22))
+    f_m = _load_font(m_size, weight="bold")
+    f_i = _load_font(i_size, weight="light")
+    for _ in range(24):
+        mw = _measure(d, model, f_m)[0] if model else 0
+        iw = _measure(d, info, f_i)[0] if info else 0
+        if max(mw, iw) <= inner or m_size <= 11:
+            break
+        m_size = max(10, int(m_size * 0.94))
+        i_size = max(9, int(i_size * 0.94))
+        f_m = _load_font(m_size, weight="bold")
+        f_i = _load_font(i_size, weight="light")
+
+    mh = _measure(d, model or "Ag", f_m)[1] if model else 0
+    ih = _measure(d, info or "Ag", f_i)[1] if info else 0
+    gap = int(note_h * 0.06) if (model and info) else 0
+    ty = border + H + max(2, (note_h - (mh + gap + ih)) // 2)
+
+    if model:
+        d.text(((cw - _measure(d, model, f_m)[0]) // 2, ty),
+               model, font=f_m, fill=(0, 0, 0))
+        ty += mh + gap
+    if info:
+        d.text(((cw - _measure(d, info, f_i)[0]) // 2, ty),
+               info, font=f_i, fill=(74, 74, 74))
+    return canvas
+
+
 def _render_center_logo(img, exif, opt, logo):
     W, H = img.size
     ms = min(3.0, max(0.0, float(opt.get("margin_scale", 1.0))))
@@ -1063,6 +1122,8 @@ def apply_watermark(img, exif, settings):
         return _render_blur(img, exif, settings)
     if tpl == "film":
         return _render_film(img, exif, settings)
+    if tpl == "polaroid":
+        return _render_polaroid(img, exif, settings)
     if tpl == "center_logo":
         return _render_center_logo(img, exif, settings, logo)
     return img.convert("RGB")
