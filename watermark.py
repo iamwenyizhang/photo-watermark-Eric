@@ -991,13 +991,13 @@ def _render_polaroid(img, exif, opt):
     """拍立得: 照片缩进白色相纸, 上左右窄边, 底部宽边留作标注。
 
     比例参照宝丽来相纸(画面 79mm, 左右上 5mm, 底 22mm), 但保留原图比例:
-    左右上 = 照片宽 4.5%, 底部标注区 = 照片宽 13%。不做圆角与阴影——
-    相纸是平贴的, 加阴影反而失真。
+    左右上 = 照片宽 4.5%, 底部标注区 = 短边 20%(相纸底部与边框约 4.4:1)。
+    不做圆角与阴影——相纸是平贴的, 加阴影反而失真。
     """
     W, H = img.size
     border = max(6, int(W * 0.045))
     # 标注区高度按短边算: 横幅照片若按宽度算, 底部会空出近 20% 的高
-    note_h = max(26, int(min(W, H) * 0.13))
+    note_h = max(26, int(min(W, H) * 0.20))
     cw, ch = W + border * 2, border + H + note_h
 
     canvas = Image.new("RGB", (cw, ch), (255, 255, 255))
@@ -1014,10 +1014,11 @@ def _render_polaroid(img, exif, opt):
         return canvas
 
     # 机型粗黑一行, 参数与日期细灰一行, 两行在标注区内垂直居中。
+    # 字号按标注区高推导, 字高约占 21%(真实拍立得手写约 23%)。
     # 超过相纸宽 84% 时整组等比缩小, 避免竖幅长机型名溢出。
     inner = int(cw * 0.84)
-    m_size = max(10, int(note_h * 0.32))
-    i_size = max(9, int(note_h * 0.22))
+    m_size = max(10, int(note_h * 0.27))
+    i_size = max(9, int(note_h * 0.19))
     f_m = _load_font(m_size, weight="bold")
     f_i = _load_font(i_size, weight="light")
     for _ in range(24):
