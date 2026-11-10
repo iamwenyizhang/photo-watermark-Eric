@@ -7,7 +7,6 @@
   blur        — 模糊背景: 照片模糊放大做背景, 居中圆角照片 + 白色信息
   film        — 胶片边框: 上下深色片基 + 齿孔, 模拟 35mm 底片一格
   center_logo — 品牌留白: 白边相框 + 底部居中品牌 Logo
-  datestamp   — 日期戳: 右下角橙色数字日期, 模拟胶片机日期打印
   normal      — 极简右下角: 一行小字, 无底色
   custom      — 自定义文字 + 可选日期
 """
@@ -559,36 +558,7 @@ def _model_text(exif):
     return " ".join(x for x in (make, model) if x)
 
 
-# ---------------- 基础三模板(覆盖式水印) ----------------
-
-def _render_datestamp(overlay, exif, opt):
-    """日期戳: 右下角橙色数字日期, 模拟老数码相机/胶片的日期打印。"""
-    W, H = overlay.size
-    d = ImageDraw.Draw(overlay)
-    raw = (exif.get("date") or "").strip()          # 2026-11-10
-    if not raw:
-        return
-    parts = raw.split("-")
-    if len(parts) == 3 and len(parts[0]) == 4:
-        txt = "'%s %s %s" % (parts[0][2:], parts[1], parts[2])
-    else:
-        txt = raw
-    if opt.get("show_time") and exif.get("time"):
-        txt += "  " + exif["time"]
-
-    scale = float(opt.get("font_scale", 1.0))
-    short = min(W, H)
-    size = max(16, int(short * 0.033 * scale))
-    font = _load_font(size, weight="med")           # Roboto 数字更硬朗
-    bbox = d.textbbox((0, 0), txt, font=font)
-    tw = bbox[2] - bbox[0]
-    pad = int(short * 0.035)
-    x = W - pad - tw
-    y = H - pad - bbox[3]
-    sh = max(1, size // 12)                          # 阴影保证亮背景可读
-    d.text((x + sh, y + sh), txt, font=font, fill=(0, 0, 0, 160))
-    d.text((x, y), txt, font=font, fill=(255, 149, 0, 255))
-
+# ---------------- 基础模板(覆盖式水印) ----------------
 
 def _render_normal(overlay, exif, opt):
     """极简右下角: 一行小字, 无底色, 白字细描边, 最不打扰画面。"""
@@ -987,7 +957,7 @@ def _render_film(img, exif, opt):
     """胶片边框: 上下黑色片基 + 齿孔, 模拟 35mm 底片一格。
 
     不发片边印字: 片基宽度只够容纳齿孔, 真实胶片的边缘编码印在齿孔之间的
-    空隙里, 我们的字号塞不进去, 强行叠加会与齿孔重叠。需要日期可用「日期戳」。
+    空隙里, 我们的字号塞不进去, 强行叠加会与齿孔重叠。需要日期可用「极简右下角」。
     """
     W, H = img.size
 
@@ -1059,7 +1029,7 @@ def _render_center_logo(img, exif, opt, logo):
 
 # ---------------- 入口 ----------------
 
-_OVERLAY_TPL = ("custom", "datestamp", "normal")
+_OVERLAY_TPL = ("custom", "normal")
 
 
 def apply_watermark(img, exif, settings):
@@ -1078,8 +1048,6 @@ def apply_watermark(img, exif, settings):
         overlay = Image.new("RGBA", rgb.size, (0, 0, 0, 0))
         if tpl == "custom":
             _render_corner(overlay, exif, settings, custom=True)
-        elif tpl == "datestamp":
-            _render_datestamp(overlay, exif, settings)
         elif tpl == "normal":
             _render_normal(overlay, exif, settings)
         return Image.alpha_composite(rgb.convert("RGBA"), overlay).convert("RGB")

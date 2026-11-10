@@ -96,7 +96,6 @@ button{font-family:inherit}
     <div class="tpl" data-tpl="blur"><b>🌫 模糊背景</b><span>照片模糊放大做背景，居中圆角照片 + 白色信息</span></div>
     <div class="tpl" data-tpl="film"><b>🎞 胶片边框</b><span>上下深色片基 + 齿孔，模拟 35mm 底片一格</span></div>
     <div class="tpl" data-tpl="center_logo"><b>⬜ 品牌留白</b><span>白边相框 + 底部居中品牌 Logo</span></div>
-    <div class="tpl" data-tpl="datestamp"><b>📅 日期戳</b><span>右下角橙色日期，模拟胶片机的日期打印</span></div>
     <div class="tpl" data-tpl="normal"><b>▫️ 极简右下角</b><span>一行小字，无底色，最不打扰画面</span></div>
     <div class="tpl" data-tpl="custom"><b>✏️ 自定义文字</b><span>自定义内容 + 可选附加拍摄日期</span></div>
   </div>
@@ -322,7 +321,6 @@ $('#bar_scale').addEventListener('change', schedulePreview);
 /* 各模板实际生效的设置项(引擎已核对), 未列出的控件隐藏 */
 const TPL_CONTROLS = {
   custom:      ['opacityGroup', 'scaleGroup'],
-  datestamp:   ['tg_date', 'scaleGroup'],
   normal:      ['tg_date', 'tg_model', 'tg_params', 'scaleGroup'],
   standard1:   ['tg_model', 'tg_lens', 'tg_params', 'tg_date'],
   standard2:   ['tg_model', 'tg_lens', 'tg_params', 'tg_date'],
