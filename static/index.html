@@ -347,6 +347,11 @@ function applyTplVisibility() {
   $('#barGroup').style.display = (t === 'standard1' || t === 'standard2') ? '' : 'none';
 }
 
+// 首屏按默认模板(白卡片)同步一次控件可见性。
+// 此前只在点击模板卡片时调用，而 HTML 里各 group 初始为 display:none，
+// 导致刚打开页面时「信息条高度」滑杆不显示。
+applyTplVisibility();
+
 /* ---------- Logo 上传 ---------- */
 $('#logoBtn').addEventListener('click', () => $('#logoInput').click());
 $('#logoInput').addEventListener('change', async () => {
