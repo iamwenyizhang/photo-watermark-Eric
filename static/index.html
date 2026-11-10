@@ -15,6 +15,7 @@ body{background:var(--bg);color:var(--text);
 header{padding:28px 24px 18px;text-align:center;border-bottom:1px solid var(--border)}
 header h1{font-size:22px;letter-spacing:.5px}
 header p{color:var(--muted);font-size:13px;margin-top:4px}
+header .build{color:#5a6270;font-size:11px;margin-left:8px}
 main{max-width:960px;margin:0 auto;padding:20px 16px}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;
   padding:18px;margin-bottom:18px}
@@ -76,7 +77,7 @@ button{font-family:inherit}
 <body>
 <header>
   <h1>📷 照片 EXIF 水印工具</h1>
-  <p>相机 / 无人机照片批量添加拍摄信息水印 · 本地处理，照片不上传云端</p>
+  <p>相机 / 无人机照片批量添加拍摄信息水印 · 本地处理，照片不上传云端<span class="build" id="buildStamp">__BUILD__</span></p>
 </header>
 <main>
 
@@ -290,7 +291,7 @@ document.querySelectorAll('.pos-btn').forEach(el => el.addEventListener('click',
   schedulePreview();
 }));
 
-['show_date', 'show_gps', 'show_model', 'show_lens', 'show_params', 'show_altitude'].forEach(k => {
+['show_date', 'show_model', 'show_lens', 'show_params'].forEach(k => {
   $('#' + k).addEventListener('change', e => { settings[k] = e.target.checked; schedulePreview(); });
 });
 $('#custom_date').addEventListener('change', e => { settings.show_date = e.target.checked; schedulePreview(); });

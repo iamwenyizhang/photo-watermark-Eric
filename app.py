@@ -94,7 +94,23 @@ def _prepare(settings):
 
 @app.get("/")
 def index():
-    return send_file(os.path.join(STATIC_DIR, "index.html"))
+    """返回界面页。
+
+    本地工具，禁用缓存：改完 static/index.html 后浏览器刷新即生效，
+    不必强制刷新。同时把文件修改时间注入页头，方便确认加载的是哪一版。
+    """
+    path = os.path.join(STATIC_DIR, "index.html")
+    with open(path, encoding="utf-8") as f:
+        html = f.read()
+    try:
+        stamp = datetime.fromtimestamp(os.path.getmtime(path)).strftime("%m-%d %H:%M")
+    except OSError:
+        stamp = ""
+    html = html.replace("__BUILD__", f"· 页面 {stamp}" if stamp else "")
+    resp = app.response_class(html, mimetype="text/html")
+    resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 
 @app.post("/api/upload")
