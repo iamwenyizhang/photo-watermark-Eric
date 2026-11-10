@@ -90,19 +90,18 @@ button{font-family:inherit}
 <section class="card">
   <h2>2. 水印设置</h2>
   <div class="tpl-row">
-    <div class="tpl active" data-tpl="drone"><b>🎬 相机参数条</b><span>底部信息条：日期 · GPS · 海拔 · 机型 · 拍摄参数</span></div>
-    <div class="tpl" data-tpl="standard1"><b>🃏 白卡片信息条</b><span>照片下方白条：机型/镜头/参数/时间 + 品牌 Logo</span></div>
+    <div class="tpl active" data-tpl="standard1"><b>🃏 白卡片信息条</b><span>照片下方白条：机型/镜头/参数/时间 + 品牌 Logo</span></div>
     <div class="tpl" data-tpl="standard2"><b>🖼 社交卡片</b><span>白色留白 + 圆角阴影照片 + 信息条，适合分享</span></div>
     <div class="tpl" data-tpl="blur"><b>🌫 模糊背景</b><span>照片模糊放大做背景，居中圆角照片 + 白色信息</span></div>
+    <div class="tpl" data-tpl="film"><b>🎞 胶片边框</b><span>上下深色片基 + 齿孔，模拟 35mm 底片一格</span></div>
     <div class="tpl" data-tpl="center_logo"><b>⬜ 品牌留白</b><span>白边相框 + 底部居中品牌 Logo</span></div>
-    <div class="tpl" data-tpl="corner"><b>📌 简约角标</b><span>圆角半透明块，日期 + 坐标 + 海拔</span></div>
+    <div class="tpl" data-tpl="datestamp"><b>📅 日期戳</b><span>右下角橙色日期，模拟胶片机的日期打印</span></div>
+    <div class="tpl" data-tpl="normal"><b>▫️ 极简右下角</b><span>一行小字，无底色，最不打扰画面</span></div>
     <div class="tpl" data-tpl="custom"><b>✏️ 自定义文字</b><span>自定义内容 + 可选附加拍摄日期</span></div>
   </div>
 
   <div class="opt-grid" id="toggleGroup">
     <label id="tg_date"><input type="checkbox" id="show_date" checked> 拍摄日期 / 时间</label>
-    <label id="tg_gps"><input type="checkbox" id="show_gps" checked> GPS 坐标</label>
-    <label id="tg_altitude"><input type="checkbox" id="show_altitude" checked> 海拔高度</label>
     <label id="tg_model"><input type="checkbox" id="show_model" checked> 相机 / 机型</label>
     <label id="tg_lens"><input type="checkbox" id="show_lens" checked> 镜头型号</label>
     <label id="tg_params"><input type="checkbox" id="show_params" checked> 拍摄参数（焦距/光圈/快门/ISO）</label>
@@ -188,7 +187,7 @@ button{font-family:inherit}
 const $ = s => document.querySelector(s);
 const state = { files: [], selected: null, busy: false };
 const settings = {
-  template: 'drone', position: 'bottom-left', opacity: 0.55, font_scale: 1.0,
+  template: 'standard1', position: 'bottom-left', opacity: 0.55, font_scale: 1.0,
   custom_text: '', custom_model: '', logo_id: null, logo_position: 'right', margin_scale: 1.0,
   bar_scale: 1.0, show_date: true, show_gps: true, show_model: true,
   show_lens: true, show_params: true, show_altitude: true
@@ -321,16 +320,16 @@ $('#bar_scale').addEventListener('change', schedulePreview);
 
 /* 各模板实际生效的设置项(引擎已核对), 未列出的控件隐藏 */
 const TPL_CONTROLS = {
-  drone:       ['tg_date', 'tg_gps', 'tg_altitude', 'tg_model', 'tg_params',
-                'opacityGroup', 'scaleGroup'],
-  corner:      ['tg_date', 'tg_gps', 'tg_altitude', 'opacityGroup', 'scaleGroup'],
   custom:      ['opacityGroup', 'scaleGroup'],
+  datestamp:   ['tg_date', 'scaleGroup'],
+  normal:      ['tg_date', 'tg_model', 'tg_params', 'scaleGroup'],
   standard1:   ['tg_model', 'tg_lens', 'tg_params', 'tg_date'],
   standard2:   ['tg_model', 'tg_lens', 'tg_params', 'tg_date'],
   blur:        ['tg_model', 'tg_params'],
-  center_logo: []
+  center_logo: [],
+  film:        []
 };
-const ALL_CONTROLS = ['tg_date', 'tg_gps', 'tg_altitude', 'tg_model', 'tg_lens',
+const ALL_CONTROLS = ['tg_date', 'tg_model', 'tg_lens',
                       'tg_params', 'opacityGroup', 'scaleGroup'];
 
 function applyTplVisibility() {
@@ -339,7 +338,7 @@ function applyTplVisibility() {
   ALL_CONTROLS.forEach(id => { $('#' + id).style.display = on.has(id) ? '' : 'none'; });
   $('#toggleGroup').style.display =
     [...on].some(id => id.startsWith('tg_')) ? '' : 'none';
-  $('#posGroup').style.display = (t === 'corner' || t === 'custom') ? '' : 'none';
+  $('#posGroup').style.display = (t === 'custom') ? '' : 'none';
   $('#customGroup').style.display = (t === 'custom' || t === 'center_logo') ? '' : 'none';
   $('#logoGroup').style.display =
     (t === 'standard1' || t === 'standard2' || t === 'center_logo') ? '' : 'none';

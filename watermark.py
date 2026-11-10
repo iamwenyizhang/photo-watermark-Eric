@@ -2,13 +2,14 @@
 """EXIF 水印引擎：解析照片元数据并渲染水印。
 
 模板:
-  drone       — 底部半透明信息条(日期时间/GPS/海拔/机型/拍摄参数, 大疆风格)
-  corner      — 简约角标(圆角半透明背景)
-  custom      — 自定义文字 + 可选日期
   standard1   — 白卡片信息条: 机型/镜头/参数/时间 + 品牌 Logo (仿 semi-utils)
   standard2   — 社交卡片: 白色留白 + 圆角阴影照片 + 信息条
   blur        — 模糊背景: 照片模糊放大做背景, 居中圆角照片 + 白色信息
+  film        — 胶片边框: 上下深色片基 + 齿孔, 模拟 35mm 底片一格
   center_logo — 品牌留白: 白边相框 + 底部居中品牌 Logo
+  datestamp   — 日期戳: 右下角橙色数字日期, 模拟胶片机日期打印
+  normal      — 极简右下角: 一行小字, 无底色
+  custom      — 自定义文字 + 可选日期
 """
 import os
 import re
@@ -560,60 +561,66 @@ def _model_text(exif):
 
 # ---------------- 基础三模板(覆盖式水印) ----------------
 
-def _render_drone(overlay, exif, opt):
-    """底部信息条: 左侧日期+GPS/海拔, 右侧机型+拍摄参数。"""
+def _render_datestamp(overlay, exif, opt):
+    """日期戳: 右下角橙色数字日期, 模拟老数码相机/胶片的日期打印。"""
     W, H = overlay.size
     d = ImageDraw.Draw(overlay)
-    scale = float(opt.get("font_scale", 1.0))
-    opacity = float(opt.get("opacity", 0.55))
-
-    base = max(20, int(W / 55 * scale))
-    f_main = _load_font(base, weight="bold")
-    f_sub = _load_font(max(14, int(base * 0.62)))
-    pad = int(base * 0.8)
-
-    left1, left2, right1, right2 = "", "", "", ""
-    if opt.get("show_date", True) and exif["date"]:
-        left1 = f"{exif['date']}  {exif['time']}".strip()
-    if opt.get("show_gps", True) and exif["gps"]:
-        left2 = exif["gps"]
-    if opt.get("show_altitude", True) and exif["altitude"]:
-        left2 = (left2 + "   " + exif["altitude"]).strip()
-    if opt.get("show_model", True):
-        right1 = _model_text(exif)
-    if opt.get("show_params", True) and exif["params"]:
-        right2 = exif["params"]
-
-    if not any((left1, left2, right1, right2)):
-        left1 = (opt.get("custom_text") or "").strip() or "无 EXIF 信息"
-        left2 = ""
-
-    h1 = d.textbbox((0, 0), "Ag1", font=f_main)[3]
-    h2 = d.textbbox((0, 0), "Ag1", font=f_sub)[3]
-    gap = int(base * 0.35)
-    bar_h = pad * 2 + h1 + (gap + h2 if (left2 or right2) else 0)
-    y0 = H - bar_h
-
-    d.rectangle([0, y0, W, H], fill=(0, 0, 0, int(255 * opacity)))
-    d.rectangle([0, y0, W, y0 + max(2, base // 15)], fill=(255, 199, 44, 200))
-
-    if left2 or right2:
-        d.text((pad, y0 + pad), left1, font=f_main, fill=(255, 255, 255, 255))
-        d.text((pad, y0 + pad + h1 + gap), left2, font=f_sub, fill=(255, 213, 79, 255))
-        ry = y0 + pad
-        if right1:
-            rw = _measure(d, right1, f_main)[0]
-            d.text((W - pad - rw, ry), right1, font=f_main, fill=(255, 255, 255, 255))
-        if right2:
-            rw = _measure(d, right2, f_sub)[0]
-            d.text((W - pad - rw, ry + h1 + gap), right2, font=f_sub,
-                   fill=(255, 255, 255, 230))
+    raw = (exif.get("date") or "").strip()          # 2026-11-10
+    if not raw:
+        return
+    parts = raw.split("-")
+    if len(parts) == 3 and len(parts[0]) == 4:
+        txt = "'%s %s %s" % (parts[0][2:], parts[1], parts[2])
     else:
-        d.text((pad, y0 + pad), left1, font=f_main, fill=(255, 255, 255, 255))
-        if right1:
-            rw = _measure(d, right1, f_main)[0]
-            d.text((W - pad - rw, y0 + pad), right1, font=f_main,
-                   fill=(255, 255, 255, 255))
+        txt = raw
+    if opt.get("show_time") and exif.get("time"):
+        txt += "  " + exif["time"]
+
+    scale = float(opt.get("font_scale", 1.0))
+    short = min(W, H)
+    size = max(16, int(short * 0.033 * scale))
+    font = _load_font(size, weight="med")           # Roboto 数字更硬朗
+    bbox = d.textbbox((0, 0), txt, font=font)
+    tw = bbox[2] - bbox[0]
+    pad = int(short * 0.035)
+    x = W - pad - tw
+    y = H - pad - bbox[3]
+    sh = max(1, size // 12)                          # 阴影保证亮背景可读
+    d.text((x + sh, y + sh), txt, font=font, fill=(0, 0, 0, 160))
+    d.text((x, y), txt, font=font, fill=(255, 149, 0, 255))
+
+
+def _render_normal(overlay, exif, opt):
+    """极简右下角: 一行小字, 无底色, 白字细描边, 最不打扰画面。"""
+    W, H = overlay.size
+    d = ImageDraw.Draw(overlay)
+    segs = []
+    if opt.get("show_model", True):
+        m = _model_text(exif)
+        if m:
+            segs.append(m)
+    if opt.get("show_params", True) and exif.get("params"):
+        segs.append(exif["params"])
+    if opt.get("show_date", True) and exif.get("date"):
+        segs.append(exif["date"])
+    txt = "   ·   ".join(segs)
+    if not txt:
+        txt = (opt.get("custom_text") or "").strip()
+    if not txt:
+        return
+
+    scale = float(opt.get("font_scale", 1.0))
+    short = min(W, H)
+    size = max(15, int(short * 0.021 * scale))
+    font = _load_font(size, weight="med")
+    bbox = d.textbbox((0, 0), txt, font=font)
+    tw = bbox[2] - bbox[0]
+    pad = int(short * 0.03)
+    x = W - pad - tw
+    y = H - pad - bbox[3]
+    # 描边要够厚，否则在杂乱背景（树叶、石阶）上会糊掉
+    d.text((x, y), txt, font=font, fill=(255, 255, 255, 240),
+           stroke_width=max(1, size // 7), stroke_fill=(0, 0, 0, 165))
 
 
 def _render_corner(overlay, exif, opt, custom=False):
@@ -959,6 +966,39 @@ def _render_blur(img, exif, opt):
 
 # ---------------- 品牌留白 ----------------
 
+def _render_film(img, exif, opt):
+    """胶片边框: 上下黑色片基 + 齿孔, 模拟 35mm 底片一格。
+
+    不发片边印字: 片基宽度只够容纳齿孔, 真实胶片的边缘编码印在齿孔之间的
+    空隙里, 我们的字号塞不进去, 强行叠加会与齿孔重叠。需要日期可用「日期戳」。
+    """
+    W, H = img.size
+
+    film_h = max(16, int(H * 0.11))        # 上下片基高度
+    side = max(6, int(W * 0.018))          # 左右窄边
+    CW, CH = W + side * 2, H + film_h * 2
+
+    canvas = Image.new("RGB", (CW, CH), (22, 22, 24))
+    canvas.paste(img.convert("RGB"), (side, film_h))
+    d = ImageDraw.Draw(canvas)
+
+    # 齿孔：圆角矩形，上下各一排，垂直居中于片基
+    hole_gap = max(20.0, W * 0.13)
+    hole_w = hole_gap * 0.52
+    hole_h = film_h * 0.46
+    n = max(2, int(round(CW / hole_gap)))
+    step = CW / n
+    rad = hole_h * 0.30
+    for i in range(n):
+        cx = step * (i + 0.5)
+        for cy in (film_h / 2.0, CH - film_h / 2.0):
+            d.rounded_rectangle(
+                [cx - hole_w / 2, cy - hole_h / 2, cx + hole_w / 2, cy + hole_h / 2],
+                radius=rad, fill=(236, 236, 232))
+
+    return canvas
+
+
 def _render_center_logo(img, exif, opt, logo):
     W, H = img.size
     ms = min(3.0, max(0.0, float(opt.get("margin_scale", 1.0))))
@@ -1002,12 +1042,12 @@ def _render_center_logo(img, exif, opt, logo):
 
 # ---------------- 入口 ----------------
 
-_OVERLAY_TPL = ("drone", "corner", "custom")
+_OVERLAY_TPL = ("custom", "datestamp", "normal")
 
 
 def apply_watermark(img, exif, settings):
     """按 settings 渲染水印, 返回新图(不修改原图)。"""
-    tpl = settings.get("template", "drone")
+    tpl = settings.get("template", "standard1")
 
     # 手填机型：EXIF 里没有品牌/型号时（微信转码、修图软件会剥离）由用户补填，
     # 同时用于 Logo 匹配（如手填 "vivo X100 Pro" 能匹配到 vivo 标）
@@ -1019,12 +1059,12 @@ def apply_watermark(img, exif, settings):
     if tpl in _OVERLAY_TPL:
         rgb = img.convert("RGB")
         overlay = Image.new("RGBA", rgb.size, (0, 0, 0, 0))
-        if tpl == "corner":
-            _render_corner(overlay, exif, settings)
-        elif tpl == "custom":
+        if tpl == "custom":
             _render_corner(overlay, exif, settings, custom=True)
-        else:
-            _render_drone(overlay, exif, settings)
+        elif tpl == "datestamp":
+            _render_datestamp(overlay, exif, settings)
+        elif tpl == "normal":
+            _render_normal(overlay, exif, settings)
         return Image.alpha_composite(rgb.convert("RGBA"), overlay).convert("RGB")
 
     logo = settings.get("_logo")
@@ -1036,6 +1076,8 @@ def apply_watermark(img, exif, settings):
         return _render_standard2(img, exif, settings, logo)
     if tpl == "blur":
         return _render_blur(img, exif, settings)
+    if tpl == "film":
+        return _render_film(img, exif, settings)
     if tpl == "center_logo":
         return _render_center_logo(img, exif, settings, logo)
     return img.convert("RGB")
