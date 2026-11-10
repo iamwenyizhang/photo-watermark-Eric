@@ -921,10 +921,36 @@ def _render_standard2(img, exif, opt, logo):
 
 
 def _render_blur(img, exif, opt):
+    """模糊背景: 照片居中加圆角阴影, 下方白字信息, 四周是自身的模糊放大。
+
+    留白由 margin_scale 控制(与社交卡片/品牌留白共用同一滑杆):
+      0   → 照片占画布宽 96%, 几乎满幅
+      1.0 → 82%, 照片占画布高约 71% (实测选定值)
+      3.0 → 54%, 留白充裕
+    """
     W, H = img.size
-    pw = int(W * 0.72)
+    cw = W
+
+    ms = min(3.0, max(0.0, float(opt.get("margin_scale", 1.0))))
+    pw_ratio = min(0.96, max(0.24, 0.96 - 0.14 * ms))
+    pw = int(W * pw_ratio)
     ph = int(pw * H / W)
-    cw, ch = W, int(H * 1.36)
+
+    model = _model_text(exif) if opt.get("show_model", True) else ""
+    params = exif.get("params", "") if opt.get("show_params", True) else ""
+    f_model = _load_font(int(cw * 0.019), weight="bold")
+    f_param = _load_font(int(cw * 0.015), weight="light")
+    probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))   # 仅用于文字测量
+    hm = _measure(probe, model or "Ag", f_model)[1] if model else 0
+    hp = _measure(probe, params or "Ag", f_param)[1] if params else 0
+    pad_text = int(cw * 0.024)
+    text_h = hm + (pad_text + hp if params else 0)
+    content_h = ph + pad_text + text_h
+
+    # 画布高度由「目标照片高占比」反推: 占比 = ph / ch。
+    # 宽占比减 0.11 是被上下留白与文字区吃掉的部分, ms=1 时即 82% - 11% = 71%。
+    ratio = min(0.94, max(0.20, pw_ratio - 0.11))
+    ch = max(int(ph / ratio), content_h + 2 * int(cw * 0.03))
 
     # 背景: 缩小→模糊→拉伸 (视觉等效大半径模糊, 快一个数量级)
     small_w = max(2, cw // 8)
@@ -935,20 +961,10 @@ def _render_blur(img, exif, opt):
     bg = ImageEnhance.Brightness(bg).enhance(0.72)
     canvas = bg.convert("RGBA")
 
-    model = _model_text(exif) if opt.get("show_model", True) else ""
-    params = exif.get("params", "") if opt.get("show_params", True) else ""
-    f_model = _load_font(int(cw * 0.019), weight="bold")
-    f_param = _load_font(int(cw * 0.015), weight="light")
     d = ImageDraw.Draw(canvas)
-    hm = _measure(d, model or "Ag", f_model)[1] if model else 0
-    hp = _measure(d, params or "Ag", f_param)[1] if params else 0
-    pad_text = int(cw * 0.024)
-    text_h = hm + (pad_text + hp if params else 0)
-
-    content_h = ph + pad_text + text_h
     px = (cw - pw) // 2
     py = max(int(cw * 0.02), (ch - content_h) // 2)
-    photo = img.resize((pw, ph), Image.BICUBIC)  # 照片须缩放到画布 72% 宽, 否则超出画布被裁
+    photo = img.resize((pw, ph), Image.BICUBIC)  # 照片须缩放到画布 82% 宽, 否则超出画布被裁
     _paste_with_shadow(canvas, _rounded(photo, int(pw * 0.015)), (px, py),
                        blur=max(8, int(cw * 0.01)), alpha=130,
                        offset=(0, max(4, int(cw * 0.008))))

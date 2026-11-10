@@ -148,7 +148,7 @@ button{font-family:inherit}
   </div>
 
   <div id="marginGroup" style="display:none">
-    <div class="group-title">留白宽度（品牌留白 / 社交卡片模板）</div>
+    <div class="group-title">四周留白（品牌留白 / 社交卡片 / 模糊背景模板）</div>
     <div class="slider-row"><span>留白宽度</span>
       <input type="range" id="margin_scale" min="0" max="300" value="100">
       <span class="slider-val" id="marginVal">100%</span></div>
@@ -325,7 +325,7 @@ const TPL_CONTROLS = {
   normal:      ['tg_date', 'tg_model', 'tg_params', 'scaleGroup'],
   standard1:   ['tg_model', 'tg_lens', 'tg_params', 'tg_date'],
   standard2:   ['tg_model', 'tg_lens', 'tg_params', 'tg_date'],
-  blur:        ['tg_model', 'tg_params'],
+  blur:        ['tg_model', 'tg_params', 'marginGroup'],
   center_logo: [],
   film:        []
 };
@@ -343,7 +343,7 @@ function applyTplVisibility() {
   $('#logoGroup').style.display =
     (t === 'standard1' || t === 'standard2' || t === 'center_logo') ? '' : 'none';
   $('#marginGroup').style.display =
-    (t === 'center_logo' || t === 'standard2') ? '' : 'none';
+    (t === 'center_logo' || t === 'standard2' || t === 'blur') ? '' : 'none';
   $('#barGroup').style.display = (t === 'standard1' || t === 'standard2') ? '' : 'none';
 }
 
